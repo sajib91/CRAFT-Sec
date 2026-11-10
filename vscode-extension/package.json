@@ -1,0 +1,81 @@
+{
+  "name": "craft-sec-vscode",
+  "displayName": "CRAFT-Sec",
+  "description": "Explainable vulnerability analysis, counterfactual feature inspection, and verified repair for VS Code.",
+  "version": "0.1.0",
+  "publisher": "craft-sec",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Linters",
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "security",
+    "vulnerability",
+    "sae",
+    "counterfactual",
+    "repair"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onCommand:craftsec.showStatus"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "craftsec.showStatus",
+        "title": "CRAFT-Sec: Show Status"
+      }
+    ],
+    "configuration": {
+      "title": "CRAFT-Sec",
+      "properties": {
+        "craftsec.backend.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python interpreter used to start the CRAFT-Sec security engine."
+        },
+        "craftsec.backend.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start the local security engine when the extension activates."
+        },
+        "craftsec.logging.level": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "default": "info",
+          "description": "Log level for extension and backend output."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --ignore-path ../.prettierignore --write \"**/*.{js,json,css,html,yml,yaml}\"",
+    "format:check": "prettier --ignore-path ../.prettierignore --check \"**/*.{js,json,css,html,yml,yaml}\"",
+    "test": "node --test test/unit/*.test.js",
+    "package": "vsce package --no-dependencies --allow-missing-repository --skip-license"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0"
+  },
+  "devDependencies": {
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.1.0",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10"
+  }
+}

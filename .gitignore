@@ -1,0 +1,63 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+
+# Node / VS Code extension
+node_modules/
+npm-debug.log*
+.eslintcache
+*.vsix
+out/
+
+# CRAFT-Sec local data and artifacts
+.craftsec-data/
+.craftsec/
+/artifacts/
+/models/
+/checkpoints/
+*.sqlite
+*.sqlite3
+*.db
+/logs/
+*.log
+
+# Large model / tensor files (keep small test fixtures only)
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
+
+# Datasets and generated research outputs
+research/datasets/*
+!research/datasets/.gitkeep
+research/experiments/runs/
+research/experiments/exports/
+benchmarks/datasets/*
+!benchmarks/datasets/.gitkeep
+benchmarks/results/*
+!benchmarks/results/.gitkeep
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp

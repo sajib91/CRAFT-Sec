@@ -1,0 +1,10 @@
+# Default development environment: core engine, development tooling, and the
+# optional ML stack. Run from security-engine/.
+#
+# The ML stack is CPU-compatible. Do not download models during setup.
+-e .[dev,ml]
+
+# Analyzer CLIs are optional and installed separately:
+#   python -m pip install -e ".[dev,ml,analyzers]"
+# For a lightweight static-only environment:
+#   python -m pip install -e ".[dev]"
