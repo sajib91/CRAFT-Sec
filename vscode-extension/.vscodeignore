@@ -1,4 +1,5 @@
 .vscode/**
+.vscode-test/**
 test/**
 **/*.test.js
 eslint.config.js

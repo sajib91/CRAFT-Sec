@@ -5,7 +5,7 @@ const prettier = require('eslint-config-prettier');
 
 module.exports = [
   {
-    ignores: ['node_modules/**', 'media/**', '**/*.vsix']
+    ignores: ['node_modules/**', '.vscode-test/**', 'media/**', '**/*.vsix']
   },
   {
     files: ['**/*.js'],

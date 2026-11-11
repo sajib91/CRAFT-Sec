@@ -1,9 +1,9 @@
 {
-  "name": "craft-sec-vscode",
-  "displayName": "CRAFT-Sec",
+  "name": "craft-sec",
+  "displayName": "CRAFT-Sec Security Framework",
   "description": "Explainable vulnerability analysis, counterfactual feature inspection, and verified repair for VS Code.",
   "version": "0.1.0",
-  "publisher": "craft-sec",
+  "publisher": "your-publisher-id",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -23,39 +23,154 @@
     "workspace"
   ],
   "activationEvents": [
-    "onCommand:craftsec.showStatus"
+    "onStartupFinished",
+    "onCommand:craftsec.showStatus",
+    "onCommand:craftsec.showLogs",
+    "onCommand:craftsec.scanCurrentFile",
+    "onCommand:craftsec.scanSelection",
+    "onCommand:craftsec.scanWorkspace",
+    "onCommand:craftsec.explainVulnerability",
+    "onCommand:craftsec.analyzeSecurityFeatures",
+    "onCommand:craftsec.counterfactualAnalysis",
+    "onCommand:craftsec.generateSecureCode",
+    "onCommand:craftsec.repairVulnerability",
+    "onCommand:craftsec.verifyRepair",
+    "onCommand:craftsec.openSecurityDashboard",
+    "onView:craftsec.sidebar"
   ],
-  "main": "./extension.js",
+  "main": "./src/extension.js",
+  "icon": "media/icon.png",
   "contributes": {
     "commands": [
       {
         "command": "craftsec.showStatus",
-        "title": "CRAFT-Sec: Show Status"
+        "title": "Show Status",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.showLogs",
+        "title": "Show Logs",
+        "category": "CRAFT-Sec",
+        "icon": "$(output)"
+      },
+      {
+        "command": "craftsec.scanCurrentFile",
+        "title": "Scan Current File",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.scanSelection",
+        "title": "Scan Selection",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.scanWorkspace",
+        "title": "Scan Workspace",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.explainVulnerability",
+        "title": "Explain Vulnerability",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.analyzeSecurityFeatures",
+        "title": "Analyze Security Features",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.counterfactualAnalysis",
+        "title": "Counterfactual Analysis",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.generateSecureCode",
+        "title": "Generate Secure Code",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.repairVulnerability",
+        "title": "Repair Vulnerability",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.verifyRepair",
+        "title": "Verify Repair",
+        "category": "CRAFT-Sec"
+      },
+      {
+        "command": "craftsec.openSecurityDashboard",
+        "title": "Open Security Dashboard",
+        "category": "CRAFT-Sec",
+        "icon": "$(shield)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "craftsec.showLogs",
+          "when": "view == craftsec.sidebar",
+          "group": "navigation"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "craftsec",
+          "title": "CRAFT-Sec",
+          "icon": "media/activitybar.svg"
+        }
+      ]
+    },
+    "views": {
+      "craftsec": [
+        {
+          "id": "craftsec.sidebar",
+          "name": "Security Dashboard",
+          "type": "webview"
+        }
+      ]
+    },
     "configuration": {
       "title": "CRAFT-Sec",
       "properties": {
         "craftsec.backend.pythonPath": {
           "type": "string",
-          "default": "python3",
-          "description": "Python interpreter used to start the CRAFT-Sec security engine."
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Path to the Python interpreter for the local CRAFT-Sec security engine. Leave empty to use the workspace `.venv` or the platform default. The backend is not implemented in this scaffold."
         },
         "craftsec.backend.autoStart": {
           "type": "boolean",
-          "default": true,
-          "description": "Start the local security engine when the extension activates."
+          "default": false,
+          "description": "Start the local security engine automatically when the backend exists. The current scaffold does not start an engine."
         },
         "craftsec.logging.level": {
           "type": "string",
           "enum": [
+            "trace",
             "debug",
             "info",
             "warn",
-            "error"
+            "error",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Show trace, debug, info, warning, and error messages.",
+            "Show debug, info, warning, and error messages.",
+            "Show info, warning, and error messages.",
+            "Show warning and error messages.",
+            "Show error messages only.",
+            "Disable CRAFT-Sec output channel messages."
           ],
           "default": "info",
-          "description": "Log level for extension and backend output."
+          "description": "Log level for the CRAFT-Sec output channel."
+        },
+        "craftsec.ui.showStatusBarItem": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the CRAFT-Sec status bar item."
         }
       }
     }
@@ -65,6 +180,7 @@
     "format": "prettier --ignore-path ../.prettierignore --write \"**/*.{js,json,css,html,yml,yaml}\"",
     "format:check": "prettier --ignore-path ../.prettierignore --check \"**/*.{js,json,css,html,yml,yaml}\"",
     "test": "node --test test/unit/*.test.js",
+    "test:integration": "node test/integration/runTest.js",
     "package": "vsce package --no-dependencies --allow-missing-repository --skip-license"
   },
   "dependencies": {

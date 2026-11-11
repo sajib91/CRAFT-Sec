@@ -21,9 +21,10 @@ npm run format:check
 npm test
 npm run build
 npm run check
+npm run extension:test:integration
 ```
 
-`npm run setup` installs dependencies and creates `.env`; it does not download models or start the engine. `npm run check` runs structure, lint, format check, and tests.
+`npm run setup` installs dependencies and creates `.env`; it does not download models or start the engine. `npm run check` runs structure, lint, format check, and tests. `npm run extension:test:integration` launches a VS Code Extension Host and may download stable VS Code into the gitignored `.vscode-test/` directory when no local installation is found.
 
 Direct invocation is also supported after setup:
 

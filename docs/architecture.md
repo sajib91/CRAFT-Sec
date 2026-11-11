@@ -1,8 +1,8 @@
 # CRAFT-Sec — Software Architecture
 
-**Status:** Phase 0 architecture approved for implementation. Phase 1 scaffold and development environment exist; no application functionality is implemented.
+**Status:** Phase 0 architecture approved for implementation. The Phase 1 scaffold, development environment, VS Code extension activation shell, and command registration layer exist; no analysis functionality is implemented.
 **Version:** 0.1.0
-**Date:** 2026-11-10
+**Date:** 2026-11-11
 **Companion document:** [research-alignment.md](research-alignment.md)
 
 CRAFT-Sec (*Counterfactual Risk Analysis and Feature-aware Steering for Secure Code Generation*) is a local-first system composed of a JavaScript VS Code extension and a Python/FastAPI research engine. It detects vulnerability-relevant evidence, explains it with model-internal and static features, estimates counterfactual feature effects, applies interaction-aware activation steering where the model permits it, proposes repository-aware repairs, and verifies those repairs independently.
@@ -90,18 +90,31 @@ CRAFT-Sec/
 │   └── adr/
 ├── vscode-extension/
 │   ├── package.json                 # commands, views, settings, activation
-│   ├── extension.js                 # thin activation entry point
 │   ├── src/
+│   │   ├── extension.js             # thin activation entry point
 │   │   ├── config.js                # settings + SecretStorage bridge
+│   │   ├── constants.js             # command, container, and view IDs
 │   │   ├── backend/
 │   │   │   ├── manager.js           # spawn, handshake, health, restart
 │   │   │   └── handshake.js         # token + workspace roots over stdin/stdout
 │   │   ├── api/
+│   │   │   ├── securityEngineService.js # command-facing engine contract
 │   │   │   ├── client.js            # authenticated fetch, retries, cancellation
 │   │   │   ├── sse.js               # streaming event parser with resume
 │   │   │   └── validate.js          # Ajv validators compiled from shared schemas
 │   │   ├── jobs/controller.js       # job lifecycle, progress, result routing
-│   │   ├── commands/index.js        # command registration and guards
+│   │   ├── commands/
+│   │   │   ├── index.js             # registration, drift check, composite return
+│   │   │   ├── definitions.js       # canonical command metadata
+│   │   │   ├── registry.js          # duplicate-safe registration and disposal
+│   │   │   ├── validation.js        # editor/workspace/file/selection guards
+│   │   │   ├── runEngineCommand.js  # progress, cancellation, error reporting
+│   │   │   ├── registerEngineCommand.js
+│   │   │   ├── scanCommands.js
+│   │   │   ├── analysisCommands.js
+│   │   │   ├── repairCommands.js
+│   │   │   ├── dashboardCommand.js
+│   │   │   └── utilityCommands.js
 │   │   ├── views/
 │   │   │   ├── findingsTree.js
 │   │   │   ├── jobsTree.js
@@ -253,14 +266,23 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 
 | Module | Responsibilities | Must not |
 |--------|------------------|----------|
-| `extension.js` | Activate/deactivate, construct services, register disposables, enforce single instance | Contain analysis logic |
+| `src/extension.js` | Activate/deactivate, construct services, register disposables, enforce single instance | Contain analysis logic |
 | `config.js` | Read settings, validate combinations, bridge secrets from `SecretStorage` to child env | Persist secrets in settings or logs |
 | `backend/manager.js` | Locate Python, spawn `python -m craftsec`, pass handshake via stdin, capture stdout/stderr, health poll, restart with backoff, terminate process group | Bind a fixed public port; ignore crash loops |
 | `api/client.js` | Bearer-authenticated fetch, timeouts, bounded retries for idempotent calls, cancellation | Retry non-idempotent mutations blindly |
 | `api/sse.js` | Parse SSE over `fetch` streaming, resume with `Last-Event-ID`, heartbeat timeout | Use `EventSource` (cannot send auth headers) |
 | `api/validate.js` | Ajv validation of every request body and response payload against shared schemas | Accept unvalidated JSON |
 | `jobs/controller.js` | Track job state, route progress to views, persist last event id, surface warnings/errors | Treat `partial` as success |
-| `commands/index.js` | Register commands, check capability + workspace preconditions, prompt for consent | Offer actions whose capability is unavailable |
+| `api/securityEngineService.js` | Define the command-facing engine contract; the unavailable implementation rejects with a typed `E_ENGINE_UNAVAILABLE` error | Invent analysis results or success responses |
+| `commands/index.js` | Register every declared command, verify the complete set, and return one composite disposable | Leave partial registrations after an error |
+| `commands/registry.js` | Own command registrations, reject duplicates, and dispose everything in reverse order | Register the same command twice |
+| `commands/validation.js` | Check saved `file:` editors, workspace containment, and selections; build request context | Analyze unsaved buffers or files outside the workspace |
+| `commands/runEngineCommand.js` | Show cancellable progress, handle cancellation, and log/report failures | Show a placeholder success notification |
+| `commands/scanCommands.js` | Register file, selection, and workspace scan commands | Bypass editor/workspace validation |
+| `commands/analysisCommands.js` | Register explanation, security-feature, and counterfactual commands | Fabricate features or counterfactual effects |
+| `commands/repairCommands.js` | Register generation, repair, and verification commands | Write code to the workspace or claim verification |
+| `commands/dashboardCommand.js` | Reveal the CRAFT-Sec Activity Bar container | Treat dashboard reveal as analysis success |
+| `commands/utilityCommands.js` | Report real extension/engine status and open the output channel | Claim the engine is available |
 | `views/*` | Findings tree, job tree, status bar; map backend resources to VS Code items | Recompute scores locally |
 | `webviews/panelHost.js` | Create panels with strict CSP + nonce, validate inbound messages, dispose listeners | Load remote scripts or allow inline script |
 | `webviews/*` | Feature explorer, counterfactual matrix, steering lab, repair review; render only backend-provided claims + provenance | Invent labels, probabilities, or causal wording |

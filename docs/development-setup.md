@@ -2,7 +2,7 @@
 
 **Status:** The macOS path was executed and verified on 2026-11-10. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
 
-This repository is a scaffold. Setup installs the toolchain, but there is no FastAPI server, analyzer adapter, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or verifier yet. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
+This repository is a scaffold. Setup installs the toolchain and the VS Code extension shell can run in an Extension Development Host, but there is no FastAPI server, analyzer adapter, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or verifier yet. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
 
 ## 1. Supported toolchain
 
@@ -11,7 +11,7 @@ This repository is a scaffold. Setup installs the toolchain, but there is no Fas
 | Python | `>=3.11,<3.15` | 3.11.14 |
 | Node.js | 22.13+ or 24+ (24 LTS recommended) | 25.9.0 |
 | npm | Bundled with Node | 11.13.0 |
-| VS Code | 1.90+ | Manifest checked; VS Code not launched |
+| VS Code | 1.90+ | 1.143.1; Extension Host launched |
 | OS | macOS or Windows | macOS 26.3.1, arm64 |
 | Docker | Optional, for future sandbox verification | 29.2.1 detected |
 | Semgrep | Optional | 1.185.0 |
@@ -206,6 +206,7 @@ Run these from the repository root after setup.
 | `npm run check` | Runs structure, lint, format check, and tests | Yes |
 | `npm run extension:test` | Runs only extension unit tests | Yes (via the same command path) |
 | `npm run extension:lint` | Runs only extension ESLint | Yes (via the same command path) |
+| `npm run extension:test:integration` | Launches a real VS Code Extension Host and validates activation, commands, views, and settings | Yes; VS Code 1.143.1 on macOS |
 
 Direct Python commands, after activation:
 
@@ -218,14 +219,45 @@ python -m ruff format --check src tests
 
 ## 9. VS Code extension development
 
-The extension is JavaScript, not TypeScript. Its entry point is `vscode-extension/extension.js`.
+The extension is JavaScript, not TypeScript. Its entry point is `vscode-extension/src/extension.js`.
 
-- Open the repository root in VS Code.
-- Install the recommended extensions from `.vscode/extensions.json`: ESLint, Prettier, Ruff, Python, and Pylance.
-- Use the **Run CRAFT-Sec Extension** launch configuration in `.vscode/launch.json` to start an Extension Development Host with `vscode-extension/` as the development path.
-- The current extension registers one command, `CRAFT-Sec: Show Status`, and a status bar item. It does not start the Python backend or run analyses.
+The manifest contributes:
 
-The launch configuration has not been exercised by an automated test on this host. The extension manifest and entry point are covered by the three Node unit tests.
+- **Activity Bar container:** `craftsec`, titled **CRAFT-Sec**, using `media/activitybar.svg`.
+- **Sidebar webview:** `craftsec.sidebar`, titled **Security Dashboard**, rendered by `src/webviews/sidebarView.js` with a strict script-free CSP and local CSS.
+- **Settings:** `craftsec.backend.pythonPath`, `craftsec.backend.autoStart`, `craftsec.logging.level`, and `craftsec.ui.showStatusBarItem`.
+- **Extension icon:** `media/icon.png`, a 128×128 PNG placeholder. The publisher is the explicit placeholder `your-publisher-id`; replace it before publishing.
+
+All commands use the **CRAFT-Sec** category:
+
+| Command | Scope | Service method |
+|---|---|---|
+| `craftsec.showStatus` | None | — |
+| `craftsec.showLogs` | None | — |
+| `craftsec.scanCurrentFile` | Saved file in a workspace folder | `scanFile` |
+| `craftsec.scanSelection` | Saved file with a non-empty selection | `scanSelection` |
+| `craftsec.scanWorkspace` | One or more workspace folders | `scanWorkspace` |
+| `craftsec.explainVulnerability` | Saved file in a workspace folder | `explainVulnerability` |
+| `craftsec.analyzeSecurityFeatures` | Saved file in a workspace folder | `analyzeSecurityFeatures` |
+| `craftsec.counterfactualAnalysis` | Saved file with a non-empty selection | `counterfactualAnalysis` |
+| `craftsec.generateSecureCode` | Saved file in a workspace folder | `generateSecureCode` |
+| `craftsec.repairVulnerability` | Saved file in a workspace folder | `repairVulnerability` |
+| `craftsec.verifyRepair` | One or more workspace folders | `verifyRepair` |
+| `craftsec.openSecurityDashboard` | None | — |
+
+The extension activates on startup, its commands, and when the sidebar view is opened. Activation creates the output channel, status bar item, security-engine service, command registry, settings listeners, and sidebar provider. Deactivation records the transition; VS Code disposes the registered subscriptions, including the single command registry that owns all 12 registrations. No Python process is started and no analysis runs.
+
+Engine-backed commands validate the editor and workspace before calling the injected `SecurityEngineService`. Validation failures and service failures are logged and shown as error messages with a **Show Logs** action; cancelled commands are logged without an error dialog. Commands show a cancellable progress notification but never a success notification. The current `UnavailableSecurityEngineService` rejects every call with `E_ENGINE_UNAVAILABLE`, so no result is fabricated.
+
+Use the **Run CRAFT-Sec Extension** launch configuration in `.vscode/launch.json` to start an Extension Development Host with `vscode-extension/` as the development path. The equivalent automated check is:
+
+```bash
+npm run extension:test:integration
+```
+
+This uses a locally installed VS Code when found (`CRAFTSEC_VSCODE_EXECUTABLE` overrides it), otherwise it downloads stable VS Code into the gitignored `.vscode-test/` directory. The suite activates the extension, verifies all registered commands, the activity bar container, sidebar view, and configuration defaults, and executes the dashboard command.
+
+The launch configuration itself was not clicked on this host, but the same development-extension path was loaded by the Extension Host integration test.
 
 ## 10. Build and packaging
 
@@ -236,28 +268,29 @@ npm run build
 Outputs:
 
 - Python wheel: `security-engine/dist/craftsec_engine-0.1.0-py3-none-any.whl`
-- VSIX: `vscode-extension/craft-sec-vscode-0.1.0.vsix`
+- VSIX: `vscode-extension/craft-sec-0.1.0.vsix`
 
-The VSIX packaging command uses `--no-dependencies` because npm workspaces hoist dependencies to the repository root, and `vsce` otherwise treats the entire repository (including `.venv`) as extension content. The packaged VSIX currently contains 15 files and about 5 KB. It does **not** include the declared `ajv` runtime dependency; no current code requires `ajv`, but a bundling step (for example, esbuild) must be added before contract validation is implemented or the extension is published.
+The VSIX packaging command uses `--no-dependencies` because npm workspaces hoist dependencies to the repository root, and `vsce` otherwise treats the entire repository (including `.venv`) as extension content. The packaged VSIX currently contains 36 files and about 26.7 KB. It does **not** include the declared `ajv` runtime dependency; no current code requires `ajv`, but a bundling step (for example, esbuild) must be added before contract validation is implemented or the extension is published.
 
 The VSIX is a development artifact. It has no repository URL or license yet, so packaging uses `--allow-missing-repository` and `--skip-license`. Do not publish it until those decisions are made.
 
 ## 11. Verification record
 
-Verified on macOS 26.3.1 arm64 on 2026-11-10:
+Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-layer verification on 2026-11-11:
 
 | Check | Result |
 |---|---|
 | `npm run setup -- --python python3.11 --cpu --with-analyzers` | Succeeded; reused/created `.venv`; no model downloads |
-| `npm run structure:check` | 45 required directories and 46 required files present; no TypeScript sources |
+| `npm run structure:check` | 45 required directories and 72 required files present; no TypeScript sources |
 | `npm run doctor` | Python 3.11.14; Node 25.9.0; npm 11.13.0; all declared Python packages present; Semgrep 1.185.0; Bandit 1.9.4; Docker 29.2.1 |
 | CPU-only PyTorch | `torch 2.15.0`, `torch.version.cuda is None` |
 | Tree-sitter grammars | Python, JavaScript, and TypeScript modules imported successfully |
 | `npm run lint` | Ruff passed; ESLint passed |
 | `npm run format:check` | 30 Python files formatted; all matched JS/JSON files formatted |
-| `npm test` | 7 pytest tests passed; 3 Node tests passed |
+| `npm test` | 7 pytest tests passed; 34 Node unit tests passed |
+| `npm run extension:test:integration` | Extension Host activated the extension; all 12 commands, activity bar container, sidebar webview, settings, and dashboard execution verified; VS Code 1.143.1 |
 | `npm run check` | Structure, lint, format check, and both test suites passed |
-| `npm run build` | Python wheel built; 15-file, 5.33 KB VSIX packaged |
+| `npm run build` | Python wheel built; 36-file, 26.7 KB VSIX packaged |
 | `npm audit --omit=dev` | 0 production vulnerabilities |
 | `npm audit` | 4 moderate `minimatch` advisories in development tooling only |
 | Windows wheel availability | Torch CPU `win_amd64`, Semgrep `win_amd64`, and tree-sitter Windows wheels present in metadata; not executed |
@@ -285,10 +318,14 @@ The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependen
 ## 13. Known limitations
 
 - Windows setup commands were not executed on this macOS host.
-- The VS Code extension was not launched during verification; only its manifest and entry point were tested.
+- The VS Code **Run CRAFT-Sec Extension** launch configuration was not clicked manually; an equivalent Extension Host run passed through `@vscode/test-electron`.
+- The extension is a shell only. It does not start the Python backend or implement detection, SAE extraction, counterfactuals, steering, repair, or verification.
+- All engine-backed commands are wired to `UnavailableSecurityEngineService`. Invoking them shows progress and then reports `E_ENGINE_UNAVAILABLE`; no analysis result, probability, or causal claim is produced.
+- Command behavior is covered by unit tests with fake VS Code and service objects. The Extension Host test verifies registration and dashboard execution; it does not invoke engine-backed commands against a real backend.
 - No FastAPI server, analyzer adapter, model runtime, SAE loader, feature extractor, counterfactual engine, steering controller, repair generator, or verifier exists yet.
 - Python 3.12–3.14 were not exercised end-to-end.
 - Native Semgrep on Windows was not exercised.
 - The development VSIX does not bundle `ajv` or other runtime dependencies.
+- The extension icon and activity bar icon are placeholders, and the publisher ID is a placeholder.
 - The repository has no license and no repository URL, so it is not publishable.
 - No model weights, SAE artifacts, datasets, benchmarks, or research results are included.

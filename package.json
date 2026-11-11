@@ -20,6 +20,7 @@
     "check": "node scripts/dev.js check",
     "structure:check": "node scripts/dev.js structure-check",
     "extension:lint": "npm --workspace vscode-extension run lint",
-    "extension:test": "npm --workspace vscode-extension run test"
+    "extension:test": "npm --workspace vscode-extension run test",
+    "extension:test:integration": "npm --workspace vscode-extension run test:integration"
   }
 }
