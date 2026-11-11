@@ -1,6 +1,6 @@
 # CRAFT-Sec — Software Architecture
 
-**Status:** Phase 0 architecture approved for implementation. The Phase 1 scaffold, development environment, VS Code extension activation shell, and command registration layer exist; no analysis functionality is implemented.
+**Status:** Phase 0 architecture approved for implementation. The Phase 1 scaffold, development environment, VS Code extension activation shell, command registration layer, and first editor-area security dashboard exist. The dashboard renders only supplied state plus an explicitly labeled demo preview; no analysis functionality is implemented.
 **Version:** 0.1.0
 **Date:** 2026-11-11
 **Companion document:** [research-alignment.md](research-alignment.md)
@@ -120,11 +120,14 @@ CRAFT-Sec/
 │   │   │   ├── jobsTree.js
 │   │   │   └── statusBar.js
 │   │   ├── webviews/
-│   │   │   ├── panelHost.js         # CSP, nonce, message routing
-│   │   │   ├── featureExplorer/
-│   │   │   ├── counterfactualMatrix/
-│   │   │   ├── steeringLab/
-│   │   │   └── repairReview/
+│   │   │   ├── dashboardPanel.js    # singleton dashboard panel + message allowlist
+│   │   │   ├── dashboardModel.js    # 11 sections, actions, empty/demo state
+│   │   │   ├── dashboardHtml.js     # accessible shell + nonce CSP
+│   │   │   ├── sidebarView.js       # Activity Bar launcher provider
+│   │   │   ├── sidebarHtml.js       # launcher markup
+│   │   │   ├── csp.js               # nonce + CSP helpers
+│   │   │   ├── html.js              # escaping + safe JSON serialization
+│   │   │   └── panelHost.js         # future shared feature-panel host
 │   │   ├── workspace/
 │   │   │   ├── snapshot.js          # file hashing and change detection
 │   │   │   ├── patchApplier.js      # approval + hash check + WorkspaceEdit
@@ -133,7 +136,7 @@ CRAFT-Sec/
 │   │   └── security/
 │   │       ├── webview.js           # CSP helpers
 │   │       └── paths.js             # workspace containment checks
-│   ├── media/                       # HTML/CSS/vanilla ES modules
+│   ├── media/                       # HTML/CSS/vanilla JavaScript
 │   └── test/                        # @vscode/test-electron suites
 ├── security-engine/
 │   ├── pyproject.toml
@@ -256,7 +259,7 @@ CRAFT-Sec/
 └── .github/workflows/               # lint, test, contract, package
 ```
 
-No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webviews use vanilla ES modules and HTML/CSS; no frontend framework in the MVP.
+No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webviews use vanilla JavaScript, HTML, and CSS; no frontend framework is used.
 
 ---
 
@@ -281,16 +284,22 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 | `commands/scanCommands.js` | Register file, selection, and workspace scan commands | Bypass editor/workspace validation |
 | `commands/analysisCommands.js` | Register explanation, security-feature, and counterfactual commands | Fabricate features or counterfactual effects |
 | `commands/repairCommands.js` | Register generation, repair, and verification commands | Write code to the workspace or claim verification |
-| `commands/dashboardCommand.js` | Reveal the CRAFT-Sec Activity Bar container | Treat dashboard reveal as analysis success |
+| `commands/dashboardCommand.js` | Open or reveal the editor-area dashboard panel | Treat opening the dashboard as analysis success |
 | `commands/utilityCommands.js` | Report real extension/engine status and open the output channel | Claim the engine is available |
 | `views/*` | Findings tree, job tree, status bar; map backend resources to VS Code items | Recompute scores locally |
-| `webviews/panelHost.js` | Create panels with strict CSP + nonce, validate inbound messages, dispose listeners | Load remote scripts or allow inline script |
-| `webviews/*` | Feature explorer, counterfactual matrix, steering lab, repair review; render only backend-provided claims + provenance | Invent labels, probabilities, or causal wording |
+| `webviews/dashboardPanel.js` | Own the singleton dashboard panel, local-resource roots, per-render nonce CSP, validated messages, allowlisted command execution, refresh, and disposal | Execute arbitrary command IDs or arguments, write files, or apply patches |
+| `webviews/dashboardModel.js` | Define the 11-section navigation, action metadata, empty state, explicitly labeled demo state, and unavailable capability schemas | Invent findings, features, probabilities, causal effects, repairs, or verification results |
+| `webviews/dashboardHtml.js` | Render the accessible shell, escaped inline state JSON, and local stylesheet/script references | Use inline executable code, remote content, or unescaped state |
+| `webviews/sidebarView.js` | Resolve the Activity Bar launcher, validate its single `openDashboard` message, and open the panel | Expose analysis data or execute commands from the sidebar |
+| `webviews/sidebarHtml.js` | Render launcher markup with a nonce CSP and local assets | Load scripts other than the launcher |
+| `webviews/csp.js`, `webviews/html.js` | Generate nonces/CSP and escape attributes, text, and inline JSON | Allow `'unsafe-inline'`, remote origins, or unescaped interpolation |
+| `webviews/panelHost.js` (future) | Shared host for feature-specific panels with strict CSP + nonce and message routing | Load remote scripts or allow inline script |
+| `webviews/*` (future) | Feature explorer, counterfactual matrix, steering lab, repair review; render only backend-provided claims + provenance | Invent labels, probabilities, or causal wording |
 | `workspace/snapshot.js` | Compute relative paths and hashes for change detection before requests | Follow symlinks outside the workspace |
 | `workspace/patchApplier.js` | Show diff, require explicit approval, revalidate base hashes, apply via `WorkspaceEdit`, create backup metadata | Write when hashes are stale; apply without approval |
 | `workspace/diagnostics.js` | Publish findings as diagnostics with severity mapped from documented policy | Present heuristic scores as calibrated |
 | `logging/output.js` | Mirror extension + backend logs into an OutputChannel with redaction | Log tokens or full source by default |
-| `security/webview.js` | Generate nonces, CSP strings, message origin checks | Use `'unsafe-inline'` or remote origins |
+| `security/webview.js` (future) | Consolidate nonce, CSP, and message-origin helpers for feature panels | Use `'unsafe-inline'` or remote origins |
 | `security/paths.js` | Normalize and verify workspace containment | Trust backend-supplied absolute paths |
 
 ### 5.2 Security engine
@@ -805,7 +814,22 @@ class PatchApplier {
 
 ### 11.3 Extension ↔ webview protocol
 
-All messages are `{ type, requestId, payload }` and validated against a webview schema. The host accepts only an explicit allowlist: `ready`, `refresh`, `runCounterfactual`, `runSteering`, `openFile`, `requestRepair`, `applyRepair`, `cancelJob`. File paths from the webview are resolved relative to the registered project and revalidated; the webview never receives the API token.
+The implemented dashboard uses validated messages rather than a generic request envelope. The webview sends:
+
+| Message | Payload | Host behavior |
+|---|---|---|
+| `ready` | none | Post the current dashboard state. |
+| `refresh` | none | Rebuild the current state and post it. |
+| `setDemoMode` | `enabled: boolean` | Switch between the empty and explicitly labeled demo state. |
+| `executeCommand` | `command: string` | Execute only a command with a declared engine service method, with no arguments. |
+| `openSettings` | none | Open VS Code settings filtered to `craftsec`. |
+| `showLogs` | none | Reveal the CRAFT-Sec output channel. |
+
+The host sends `{ type: 'state', state }` and `{ type: 'notice', level, message }`. The initial state is also embedded in the document as escaped `application/json` data. Unknown or malformed messages are logged and ignored. The panel rejects command IDs outside its allowlist and never accepts command arguments from the webview.
+
+The dashboard state schema carries `schemaVersion`, `dataMode` (`empty`, `demo`, or `live`), canonical sections and actions, engine metadata, summary counts, distributions, scan history, findings, SAE/interaction/steering capability states, explanations, repairs, verification, reports, and read-only settings. `live` currently resolves to the empty state because no backend exists; the dashboard does not invent live results.
+
+The planned job/file protocol uses a richer `{ type, requestId, payload }` envelope. When implemented, it must extend the allowlist explicitly: `runCounterfactual`, `runSteering`, `openFile`, `requestRepair`, `applyRepair`, and `cancelJob`. File paths from the webview will be resolved relative to the registered project and revalidated; the webview never receives the API token.
 
 ### 11.4 Patch contract
 

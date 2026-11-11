@@ -57,11 +57,12 @@ function assertCompleteRegistry(registry) {
  * @param {{
  *   vscode: import('vscode'),
  *   service: import('../api/securityEngineService').SecurityEngineService,
- *   logger: import('../logging/output').Logger
+ *   logger: import('../logging/output').Logger,
+ *   dashboard: import('../webviews/dashboardPanel').DashboardPanelController
  * }} dependencies
  * @returns {CommandRegistry} One disposable that owns every registration.
  */
-function registerCommands({ vscode, service, logger }) {
+function registerCommands({ vscode, service, logger, dashboard }) {
   if (!vscode) {
     throw new TypeError('registerCommands requires a vscode API object.');
   }
@@ -71,9 +72,12 @@ function registerCommands({ vscode, service, logger }) {
   if (!logger) {
     throw new TypeError('registerCommands requires a logger.');
   }
+  if (!dashboard || typeof dashboard.open !== 'function') {
+    throw new TypeError('registerCommands requires a dashboard controller.');
+  }
 
   const registry = new CommandRegistry(vscode, logger);
-  const context = { vscode, service, logger, registry };
+  const context = { vscode, service, logger, dashboard, registry };
 
   try {
     for (const register of COMMAND_REGISTRARS) {

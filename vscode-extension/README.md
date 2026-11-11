@@ -4,16 +4,16 @@ JavaScript VS Code client for the CRAFT-Sec security framework.
 
 ## Status
 
-**Extension shell only.** The extension activates, registers its commands, settings, output channel, status bar item, activity bar container, and sidebar webview. Every analysis command is connected to the `SecurityEngineService` interface, but the current `UnavailableSecurityEngineService` reports that the local engine is unavailable. It does **not** start the Python backend or perform analysis. Detection, SAE features, counterfactuals, steering, repair, and verification are not implemented.
+**Extension shell with a security dashboard.** The extension activates, registers its commands, settings, output channel, status bar item, Activity Bar container, sidebar launcher, and an editor-area **CRAFT-Sec Security Dashboard** panel. The dashboard provides 11 navigable sections and renders only the state supplied by the extension host. Every analysis command is connected to the `SecurityEngineService` interface, but the current `UnavailableSecurityEngineService` reports that the local engine is unavailable. It does **not** start the Python backend or perform analysis. Detection, SAE features, counterfactuals, steering, repair, and verification are not implemented.
 
-No analysis results, probabilities, or causal claims are produced by this extension. Commands show cancellable progress while they wait and then report the engine error; they never show a placeholder success message.
+No analysis results, probabilities, or causal claims are produced by this extension. The dashboard starts empty. An explicitly labeled demo preview can populate illustrative overview, finding, CWE, and scan-history values; it deliberately leaves SAE features, interactions, steering, explanations, repairs, verification checks, and reports empty. Commands show cancellable progress while they wait and then report the engine error; they never show a placeholder success message.
 
 ## Manifest contributions
 
 | Contribution | Identifier | Purpose |
 |---|---|---|
 | Activity bar container | `craftsec` | CRAFT-Sec entry in the Activity Bar |
-| Sidebar webview | `craftsec.sidebar` | Scaffold status and planned-capability view |
+| Sidebar webview | `craftsec.sidebar` | Activity Bar launcher for the editor-area dashboard |
 | Command | `craftsec.showStatus` | Report the real extension and engine status |
 | Command | `craftsec.showLogs` | Open the CRAFT-Sec output channel |
 | Command | `craftsec.scanCurrentFile` | Scan the active saved file |
@@ -25,7 +25,7 @@ No analysis results, probabilities, or causal claims are produced by this extens
 | Command | `craftsec.generateSecureCode` | Generate secure code from editor context |
 | Command | `craftsec.repairVulnerability` | Generate a repair proposal |
 | Command | `craftsec.verifyRepair` | Verify a repair at workspace scope |
-| Command | `craftsec.openSecurityDashboard` | Reveal the CRAFT-Sec Activity Bar container |
+| Command | `craftsec.openSecurityDashboard` | Open or reveal the CRAFT-Sec Security Dashboard panel |
 
 All commands use the `CRAFT-Sec` category. The extension activates on startup, on any of its commands, and when the sidebar view is opened.
 
@@ -40,6 +40,21 @@ All commands use the `CRAFT-Sec` category. The extension activates on startup, o
 - A single `CommandRegistry` owns all 12 registrations and is disposed with the extension.
 
 The publisher is set to the explicit placeholder `your-publisher-id`. Replace it with the real Marketplace publisher ID before publishing; no publisher identity is claimed by this repository.
+
+## Security dashboard
+
+`craftsec.openSecurityDashboard` opens (or reveals) a singleton editor-area webview panel titled **CRAFT-Sec Security Dashboard**. The Activity Bar sidebar is a launcher that sends one message, `openDashboard`.
+
+The dashboard has 11 sections: Overview, Security Scan, Vulnerabilities, SAE Features, Feature Interactions, Security Steering, Explanations, Automated Repair, Verification, Research Reports, and Settings. Overview shows total findings, severity counts, vulnerability and CWE distributions, verification status, and recent scan history.
+
+- **Empty by default.** Counts are `null` and lists are empty until a real scan result is supplied. The dashboard never estimates missing values.
+- **Explicit demo preview.** The **Load demo preview** button requests a separately labeled data mode with 18 illustrative findings, matching severity and CWE totals, and scan history. It does not simulate SAE activations, feature interactions, steering, explanations, repairs, verification checks, or reports.
+- **Backend-ready state.** The panel controller calls an injected `getState(dataMode)` function. `live` currently falls back to the empty state because no backend exists; this is deliberate.
+- **Restricted execution.** Dashboard action buttons can execute only the nine engine-backed commands in the controller's allowlist, with no arguments. The dashboard cannot execute arbitrary VS Code commands, write files, apply patches, or start a backend.
+- **Validation.** Inbound messages are checked for shape and value. Unknown or malformed messages are logged and ignored. Engine command failures produce an error notice, never a success notice.
+- **Webview security.** The shell uses a per-render nonce, a restrictive CSP (`default-src 'none'`, no network or inline execution), local resource roots, escaped embedded JSON, and DOM text APIs for dynamic content. The sidebar launcher has its own nonce CSP and can only post `openDashboard`.
+- **Accessibility and theming.** Navigation uses an accessible vertical tablist with keyboard support, tables have captions and scoped headers, status changes use a live region, and styling uses VS Code theme tokens with reduced-motion and forced-colors handling.
+- **Read-only settings.** Settings are displayed read-only; **Open VS Code Settings** and **Show logs** delegate to VS Code.
 
 ## Settings
 
@@ -67,7 +82,7 @@ npm run extension:test:integration
 npm run build
 ```
 
-The unit tests validate the manifest, command definitions, command registration and disposal, editor/workspace validation, progress and error behavior, the unavailable service contract, shared command/view identifiers, icon dimensions, CSP behavior, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, activates the extension, checks all registered commands, the activity bar container, sidebar view, and settings defaults, and executes the dashboard command. Tests never download models or call a security engine.
+The unit suite (67 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable service contract, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, activates the extension, checks all registered commands, the Activity Bar container, sidebar view, and settings defaults, opens the dashboard, and verifies that a second invocation reuses the same panel tab. Tests never download models or call a security engine.
 
 ## Extension Development Host
 
@@ -99,19 +114,24 @@ The VSIX build uses `vsce package --no-dependencies` because npm workspaces hois
 | `src/commands/scanCommands.js` | Scan Current File, Scan Selection, Scan Workspace |
 | `src/commands/analysisCommands.js` | Explain, security features, counterfactual analysis |
 | `src/commands/repairCommands.js` | Generate secure code, repair, verify |
-| `src/commands/dashboardCommand.js` | Open security dashboard |
+| `src/commands/dashboardCommand.js` | Open or reveal the dashboard panel |
 | `src/commands/utilityCommands.js` | Show status and show logs |
 | `src/api/securityEngineService.js` | Service contract and unavailable implementation |
 | `src/logging/output.js` | Log output channel and level filtering |
 | `src/views/statusBar.js` | Status bar item and visibility setting |
-| `src/webviews/sidebarView.js` | Webview view provider and strict CSP setup |
-| `src/webviews/sidebarHtml.js` | Static, script-free sidebar HTML |
+| `src/webviews/sidebarView.js` | Activity Bar launcher provider and `openDashboard` validation |
+| `src/webviews/sidebarHtml.js` | Nonce-CSP launcher markup |
+| `src/webviews/dashboardPanel.js` | Singleton panel controller, message validation, and command allowlist |
+| `src/webviews/dashboardModel.js` | 11-section navigation, actions, empty state, and labeled demo state |
+| `src/webviews/dashboardHtml.js` | Accessible dashboard shell with nonce CSP and embedded state |
+| `src/webviews/csp.js` | Nonce and Content Security Policy construction |
+| `src/webviews/html.js` | Attribute/text escaping and safe inline JSON serialization |
 | `src/backend/` | Engine spawn, handshake, health, restart (future) |
 | `src/api/` | Security-engine service contract; authenticated client, SSE, schema validation (future) |
 | `src/jobs/` | Job lifecycle and progress routing (future) |
 | `src/workspace/` | Snapshots, patch approval, diagnostics (future) |
-| `src/security/` | Webview CSP and path containment helpers (future) |
-| `media/` | Icon, activity bar SVG, sidebar CSS |
-| `test/` | Unit, integration, and fixture tests |
+| `src/security/` | Shared webview and path containment helpers (future) |
+| `media/` | Icons, dashboard CSS/JS, and sidebar launcher CSS/JS |
+| `test/` | Unit and Extension Host integration tests |
 
 See `docs/architecture.md` in the repository for the full design.

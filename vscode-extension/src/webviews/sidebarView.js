@@ -1,7 +1,8 @@
 'use strict';
 
 const vscode = require('vscode');
-const { VIEW_ID } = require('../constants');
+const { COMMANDS, VIEW_ID } = require('../constants');
+const { createNonce } = require('./csp');
 const { createSidebarHtml } = require('./sidebarHtml');
 
 class SidebarViewProvider {
@@ -20,19 +21,47 @@ class SidebarViewProvider {
   resolveWebviewView(webviewView) {
     const mediaRoot = vscode.Uri.joinPath(this.extensionUri, 'media');
     webviewView.webview.options = {
-      enableScripts: false,
+      enableScripts: true,
       localResourceRoots: [mediaRoot]
     };
 
+    const nonce = createNonce();
     const styleUri = webviewView.webview.asWebviewUri(
       vscode.Uri.joinPath(mediaRoot, 'sidebar.css')
     );
-    webviewView.webview.html = createSidebarHtml({
-      cspSource: webviewView.webview.cspSource,
-      styleUri: styleUri.toString()
+    const scriptUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(mediaRoot, 'sidebar.js')
+    );
+
+    const messageSubscription = webviewView.webview.onDidReceiveMessage(async (message) => {
+      if (!message || typeof message !== 'object' || message.type !== 'openDashboard') {
+        this.logger.debug('Ignored an unknown CRAFT-Sec sidebar message.');
+        return;
+      }
+
+      try {
+        await vscode.commands.executeCommand(COMMANDS.openSecurityDashboard);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Unable to open the security dashboard from the sidebar: ${detail}`,
+          error
+        );
+      }
     });
 
-    this.logger.debug('Resolved the CRAFT-Sec sidebar webview.');
+    webviewView.onDidDispose(() => {
+      messageSubscription.dispose();
+    });
+
+    webviewView.webview.html = createSidebarHtml({
+      cspSource: webviewView.webview.cspSource,
+      styleUri: styleUri.toString(),
+      scriptUri: scriptUri.toString(),
+      nonce
+    });
+
+    this.logger.debug('Resolved the CRAFT-Sec sidebar launcher webview.');
   }
 }
 

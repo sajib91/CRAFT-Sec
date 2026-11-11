@@ -6,7 +6,7 @@ CRAFT-Sec is a local-first research system for explainable vulnerability detecti
 
 ## Status
 
-**Phase 1: repository scaffold, development environment, VS Code extension shell, and command layer.** This repository currently contains the approved architecture, directory structure, package manifests, development toolchain, placeholder documentation, and a runnable extension shell. The environment settings layer, extension activation, and modular command registration against a security-engine service interface are implemented with tests. It does **not** yet implement vulnerability detection, SAE extraction, counterfactuals, steering, repair, or verification. No results, benchmarks, or model performance are claimed.
+**Phase 1: repository scaffold, development environment, VS Code extension shell, command layer, and security dashboard.** This repository currently contains the approved architecture, directory structure, package manifests, development toolchain, placeholder documentation, and a runnable extension shell with an editor-area security dashboard. The environment settings layer, extension activation, modular command registration against a security-engine service interface, and the dashboard's empty/demo state model are implemented with tests. It does **not** yet implement vulnerability detection, SAE extraction, counterfactuals, steering, repair, or verification. No results, benchmarks, or model performance are claimed.
 
 ## Research integrity
 
@@ -72,7 +72,7 @@ npm run check
 npm run structure:check
 ```
 
-This verifies that the scaffold matches the approved architecture layout. After setup, `npm run check` runs structure, lint, formatting, and tests. The current tests cover environment settings, command registration and validation, the extension manifest and sidebar, and an Extension Host activation run; no analysis functionality is implemented.
+This verifies that the scaffold matches the approved architecture layout. After setup, `npm run check` runs structure, lint, formatting, and tests. The current tests cover environment settings, command registration and validation, the extension manifest, the dashboard model/HTML/panel/client, the sidebar launcher, and an Extension Host run that opens the dashboard. No analysis functionality is implemented.
 
 ## Documentation
 

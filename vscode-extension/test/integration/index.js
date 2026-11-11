@@ -3,6 +3,20 @@
 const assert = require('node:assert/strict');
 const vscode = require('vscode');
 const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
+const { DASHBOARD_TITLE } = require('../../src/webviews/dashboardPanel');
+
+async function waitForTab(label, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const tabs = vscode.window.tabGroups.all.flatMap((group) => group.tabs);
+    const tab = tabs.find((entry) => entry.label === label);
+    if (tab) {
+      return tab;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return undefined;
+}
 
 async function run() {
   const manifest = require('../../package.json');
@@ -33,6 +47,15 @@ async function run() {
   assert.equal(configuration.get('ui.showStatusBarItem'), true);
 
   await vscode.commands.executeCommand(COMMANDS.openSecurityDashboard);
+  const dashboardTab = await waitForTab(DASHBOARD_TITLE);
+  assert.ok(dashboardTab, 'the dashboard panel must open in an editor tab');
+
+  await vscode.commands.executeCommand(COMMANDS.openSecurityDashboard);
+  const dashboardTabs = vscode.window.tabGroups.all
+    .flatMap((group) => group.tabs)
+    .filter((entry) => entry.label === DASHBOARD_TITLE);
+  assert.equal(dashboardTabs.length, 1, 'the dashboard panel must be a singleton');
+
   console.log('CRAFT-Sec Extension Host checks passed.');
 }
 

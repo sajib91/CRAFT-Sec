@@ -248,12 +248,29 @@ function createFakeService(overrides = {}) {
   return { service, calls };
 }
 
+function createFakeDashboard(options = {}) {
+  const openCalls = [];
+  return {
+    openCalls,
+    dashboard: {
+      open() {
+        openCalls.push({});
+        if (options.openError) {
+          throw options.openError;
+        }
+        return { revealed: false };
+      }
+    }
+  };
+}
+
 function createHarness(options = {}) {
   const fake = createFakeVscode(options);
   const logger = createFakeLogger();
   const { service, calls } = createFakeService(options.serviceOverrides);
-  const registry = registerCommands({ vscode: fake.vscode, service, logger });
-  return { ...fake, logger, service, calls, registry };
+  const { dashboard, openCalls } = createFakeDashboard(options);
+  const registry = registerCommands({ vscode: fake.vscode, service, logger, dashboard });
+  return { ...fake, logger, service, calls, dashboard, openCalls, registry };
 }
 
 test('registerCommands registers every declared command exactly once', () => {
@@ -475,15 +492,14 @@ test('pre-cancelled commands report cancellation without an error notification',
   harness.registry.dispose();
 });
 
-test('open security dashboard reveals the contributed container', async () => {
+test('open security dashboard opens the dashboard panel', async () => {
   const harness = createHarness();
 
   const result = await harness.handlers.get(COMMANDS.openSecurityDashboard)();
 
   assert.equal(result, undefined);
-  assert.deepEqual(harness.executedCommands, [
-    { command: 'workbench.view.extension.craftsec', args: [] }
-  ]);
+  assert.equal(harness.openCalls.length, 1);
+  assert.deepEqual(harness.executedCommands, []);
   assert.equal(harness.errorMessages.length, 0);
   assert.equal(harness.informationMessages.length, 0);
 
@@ -492,12 +508,13 @@ test('open security dashboard reveals the contributed container', async () => {
 
 test('dashboard failures are logged and reported', async () => {
   const harness = createHarness({
-    executeCommandError: new Error('view unavailable'),
+    openError: new Error('view unavailable'),
     errorMessageResult: 'Show Logs'
   });
 
   await harness.handlers.get(COMMANDS.openSecurityDashboard)();
 
+  assert.equal(harness.openCalls.length, 1);
   assert.equal(harness.errorMessages.length, 1);
   assert.match(harness.errorMessages[0].message, /Unable to open the Security Dashboard/);
   assert.equal(harness.logger.shown, true);
@@ -538,12 +555,25 @@ test('show logs opens the CRAFT-Sec output channel', async () => {
 test('registration fails atomically when the service contract is incomplete', () => {
   const fake = createFakeVscode();
   const { service } = createFakeService();
+  const { dashboard } = createFakeDashboard();
   delete service.verifyRepair;
 
   assert.throws(
-    () => registerCommands({ vscode: fake.vscode, service, logger: createFakeLogger() }),
+    () => registerCommands({ vscode: fake.vscode, service, logger: createFakeLogger(), dashboard }),
     /SecurityEngineService\.verifyRepair/
   );
   assert.equal(fake.handlers.size, 0);
   assert.ok(fake.registrations.every((registration) => registration.disposed));
+});
+
+test('registration fails atomically when the dashboard controller is missing', () => {
+  const fake = createFakeVscode();
+  const { service } = createFakeService();
+
+  assert.throws(
+    () => registerCommands({ vscode: fake.vscode, service, logger: createFakeLogger() }),
+    /dashboard controller/
+  );
+  assert.equal(fake.handlers.size, 0);
+  assert.equal(fake.registrations.length, 0);
 });

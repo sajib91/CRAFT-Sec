@@ -1,8 +1,8 @@
 # Development Setup
 
-**Status:** The macOS path was executed and verified on 2026-11-10. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
+**Status:** The macOS path was executed and verified on 2026-11-10; command-layer and dashboard verification was repeated on 2026-11-11. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
 
-This repository is a scaffold. Setup installs the toolchain and the VS Code extension shell can run in an Extension Development Host, but there is no FastAPI server, analyzer adapter, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or verifier yet. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
+This repository is a scaffold. Setup installs the toolchain, and the VS Code extension shell with its dashboard can run in an Extension Development Host, but there is no FastAPI server, analyzer adapter, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or verifier yet. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
 
 ## 1. Supported toolchain
 
@@ -224,7 +224,8 @@ The extension is JavaScript, not TypeScript. Its entry point is `vscode-extensio
 The manifest contributes:
 
 - **Activity Bar container:** `craftsec`, titled **CRAFT-Sec**, using `media/activitybar.svg`.
-- **Sidebar webview:** `craftsec.sidebar`, titled **Security Dashboard**, rendered by `src/webviews/sidebarView.js` with a strict script-free CSP and local CSS.
+- **Sidebar launcher:** `craftsec.sidebar`, titled **Security Dashboard**, rendered by `src/webviews/sidebarView.js` with a nonce CSP and local CSS/JS. Its only action posts `openDashboard`; it cannot execute commands or read analysis data.
+- **Security dashboard panel:** opened on demand by `craftsec.openSecurityDashboard`, not contributed as a manifest view. It is a singleton editor-area panel with 11 sections, theme-aware styling, and a restrictive nonce CSP.
 - **Settings:** `craftsec.backend.pythonPath`, `craftsec.backend.autoStart`, `craftsec.logging.level`, and `craftsec.ui.showStatusBarItem`.
 - **Extension icon:** `media/icon.png`, a 128×128 PNG placeholder. The publisher is the explicit placeholder `your-publisher-id`; replace it before publishing.
 
@@ -245,7 +246,11 @@ All commands use the **CRAFT-Sec** category:
 | `craftsec.verifyRepair` | One or more workspace folders | `verifyRepair` |
 | `craftsec.openSecurityDashboard` | None | — |
 
-The extension activates on startup, its commands, and when the sidebar view is opened. Activation creates the output channel, status bar item, security-engine service, command registry, settings listeners, and sidebar provider. Deactivation records the transition; VS Code disposes the registered subscriptions, including the single command registry that owns all 12 registrations. No Python process is started and no analysis runs.
+The extension activates on startup, its commands, and when the sidebar view is opened. Activation creates the output channel, status bar item, security-engine service, dashboard panel controller, command registry, settings listeners, and sidebar launcher provider. Deactivation records the transition; VS Code disposes the registered subscriptions, including the single command registry that owns all 12 registrations. No Python process is started and no analysis runs.
+
+`craftsec.openSecurityDashboard` calls the injected `DashboardPanelController`, which creates or reveals a singleton editor-area panel titled **CRAFT-Sec Security Dashboard**. The dashboard is empty by default: unknown counts are `null` and result lists are empty. The **Load demo preview** action requests a separately labeled state with 18 illustrative findings and matching severity/CWE totals; it intentionally leaves SAE features, interactions, steering, explanations, repairs, verification checks, and reports empty. Dashboard action buttons may execute only the nine engine-backed commands in the controller's allowlist, with no arguments; commands that fail produce an error notice, never a success notice. The dashboard cannot write source files or apply patches.
+
+The dashboard shell is server-rendered and the client renders dynamic content with DOM text APIs. It uses a per-render nonce, `default-src 'none'`, no network or inline executable code, local resource roots, and escaped embedded JSON. Inbound webview messages are validated; unknown messages are ignored. The Activity Bar launcher has the same CSP discipline and can only send `openDashboard`.
 
 Engine-backed commands validate the editor and workspace before calling the injected `SecurityEngineService`. Validation failures and service failures are logged and shown as error messages with a **Show Logs** action; cancelled commands are logged without an error dialog. Commands show a cancellable progress notification but never a success notification. The current `UnavailableSecurityEngineService` rejects every call with `E_ENGINE_UNAVAILABLE`, so no result is fabricated.
 
@@ -255,7 +260,7 @@ Use the **Run CRAFT-Sec Extension** launch configuration in `.vscode/launch.json
 npm run extension:test:integration
 ```
 
-This uses a locally installed VS Code when found (`CRAFTSEC_VSCODE_EXECUTABLE` overrides it), otherwise it downloads stable VS Code into the gitignored `.vscode-test/` directory. The suite activates the extension, verifies all registered commands, the activity bar container, sidebar view, and configuration defaults, and executes the dashboard command.
+This uses a locally installed VS Code when found (`CRAFTSEC_VSCODE_EXECUTABLE` overrides it), otherwise it downloads stable VS Code into the gitignored `.vscode-test/` directory. The suite activates the extension, verifies all registered commands, the Activity Bar container, sidebar view, and configuration defaults, opens the dashboard, waits for its editor tab, and verifies that a second invocation reuses the same tab.
 
 The launch configuration itself was not clicked on this host, but the same development-extension path was loaded by the Extension Host integration test.
 
@@ -270,27 +275,28 @@ Outputs:
 - Python wheel: `security-engine/dist/craftsec_engine-0.1.0-py3-none-any.whl`
 - VSIX: `vscode-extension/craft-sec-0.1.0.vsix`
 
-The VSIX packaging command uses `--no-dependencies` because npm workspaces hoist dependencies to the repository root, and `vsce` otherwise treats the entire repository (including `.venv`) as extension content. The packaged VSIX currently contains 36 files and about 26.7 KB. It does **not** include the declared `ajv` runtime dependency; no current code requires `ajv`, but a bundling step (for example, esbuild) must be added before contract validation is implemented or the extension is published.
+The VSIX packaging command uses `--no-dependencies` because npm workspaces hoist dependencies to the repository root, and `vsce` otherwise treats the entire repository (including `.venv`) as extension content. The current packaged VSIX contains 44 files and about 60.2 KB, including the dashboard and launcher assets. It does **not** include the declared `ajv` runtime dependency; no current code requires `ajv`, but a bundling step (for example, esbuild) must be added before contract validation is implemented or the extension is published.
 
 The VSIX is a development artifact. It has no repository URL or license yet, so packaging uses `--allow-missing-repository` and `--skip-license`. Do not publish it until those decisions are made.
 
 ## 11. Verification record
 
-Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-layer verification on 2026-11-11:
+Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-layer and dashboard verification on 2026-11-11:
 
 | Check | Result |
 |---|---|
 | `npm run setup -- --python python3.11 --cpu --with-analyzers` | Succeeded; reused/created `.venv`; no model downloads |
-| `npm run structure:check` | 45 required directories and 72 required files present; no TypeScript sources |
+| `npm run structure:check` | 45 required directories and 84 required files present; no TypeScript sources |
 | `npm run doctor` | Python 3.11.14; Node 25.9.0; npm 11.13.0; all declared Python packages present; Semgrep 1.185.0; Bandit 1.9.4; Docker 29.2.1 |
 | CPU-only PyTorch | `torch 2.15.0`, `torch.version.cuda is None` |
 | Tree-sitter grammars | Python, JavaScript, and TypeScript modules imported successfully |
 | `npm run lint` | Ruff passed; ESLint passed |
-| `npm run format:check` | 30 Python files formatted; all matched JS/JSON files formatted |
-| `npm test` | 7 pytest tests passed; 34 Node unit tests passed |
-| `npm run extension:test:integration` | Extension Host activated the extension; all 12 commands, activity bar container, sidebar webview, settings, and dashboard execution verified; VS Code 1.143.1 |
+| `npm run format:check` | Ruff and Prettier reported no formatting differences |
+| `npm test` | 7 pytest tests passed; 67 Node unit tests passed |
+| `npm run extension:test:integration` | Extension Host activated the extension; all 12 commands, Activity Bar container, sidebar view, settings, dashboard tab, and dashboard singleton behavior verified; VS Code 1.143.1 |
+| Dashboard runtime smoke test | Headless Chrome rendered the empty and demo states across all 11 sections with no console or CSP errors; manual check, not part of `npm run check` |
 | `npm run check` | Structure, lint, format check, and both test suites passed |
-| `npm run build` | Python wheel built; 36-file, 26.7 KB VSIX packaged |
+| `npm run build` | Python wheel built; 44-file, 60.2 KB VSIX packaged |
 | `npm audit --omit=dev` | 0 production vulnerabilities |
 | `npm audit` | 4 moderate `minimatch` advisories in development tooling only |
 | Windows wheel availability | Torch CPU `win_amd64`, Semgrep `win_amd64`, and tree-sitter Windows wheels present in metadata; not executed |
@@ -319,9 +325,11 @@ The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependen
 
 - Windows setup commands were not executed on this macOS host.
 - The VS Code **Run CRAFT-Sec Extension** launch configuration was not clicked manually; an equivalent Extension Host run passed through `@vscode/test-electron`.
-- The extension is a shell only. It does not start the Python backend or implement detection, SAE extraction, counterfactuals, steering, repair, or verification.
+- The extension is a shell with a dashboard. It does not start the Python backend or implement detection, SAE extraction, counterfactuals, steering, repair, or verification.
+- The dashboard demo preview is illustrative interface data only. It is not a scan result, and it deliberately omits SAE activations, feature effects, steering results, explanations, repairs, verification checks, and reports.
 - All engine-backed commands are wired to `UnavailableSecurityEngineService`. Invoking them shows progress and then reports `E_ENGINE_UNAVAILABLE`; no analysis result, probability, or causal claim is produced.
-- Command behavior is covered by unit tests with fake VS Code and service objects. The Extension Host test verifies registration and dashboard execution; it does not invoke engine-backed commands against a real backend.
+- Command behavior is covered by unit tests with fake VS Code and service objects. The Extension Host test verifies registration, sidebar launcher presence, dashboard panel creation, and singleton behavior; it does not inspect the rendered webview DOM or invoke engine-backed commands against a real backend.
+- The headless Chrome dashboard smoke test is a manual verification and is not committed as a portable automated test; it does not replace a browser-matrix or assistive-technology audit.
 - No FastAPI server, analyzer adapter, model runtime, SAE loader, feature extractor, counterfactual engine, steering controller, repair generator, or verifier exists yet.
 - Python 3.12–3.14 were not exercised end-to-end.
 - Native Semgrep on Windows was not exercised.

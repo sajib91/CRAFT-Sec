@@ -6,6 +6,8 @@ const { createLogger } = require('./logging/output');
 const { createStatusBar } = require('./views/statusBar');
 const { registerCommands } = require('./commands');
 const { registerSidebarView } = require('./webviews/sidebarView');
+const { DashboardPanelController } = require('./webviews/dashboardPanel');
+const { buildDashboardState } = require('./webviews/dashboardModel');
 const { onSettingsChanged, readSettings } = require('./config');
 
 /** @type {import('./logging/output').Logger | undefined} */
@@ -15,8 +17,8 @@ let logger;
  * Activate the CRAFT-Sec extension.
  *
  * This starts no Python process and performs no analysis. It creates the
- * security-engine service, registers commands against that interface,
- * registers the sidebar and status bar, and wires settings changes.
+ * security-engine service, dashboard controller, command registry, sidebar
+ * launcher, and status bar, and wires settings changes.
  *
  * @param {import('vscode').ExtensionContext} context
  */
@@ -27,7 +29,17 @@ function activate(context) {
 
   const statusBar = createStatusBar();
   const service = createSecurityEngineService();
-  const commandRegistry = registerCommands({ vscode, service, logger });
+  const dashboard = new DashboardPanelController({
+    vscode,
+    extensionUri: context.extensionUri,
+    logger,
+    getState: (dataMode) =>
+      buildDashboardState({
+        dataMode,
+        settings: readSettings()
+      })
+  });
+  const commandRegistry = registerCommands({ vscode, service, logger, dashboard });
   const sidebarRegistration = registerSidebarView(context, logger);
 
   const settingsSubscription = onSettingsChanged((event) => {
@@ -37,12 +49,16 @@ function activate(context) {
     if (event.affectsConfiguration('craftsec.ui.showStatusBarItem')) {
       statusBar.applySettings();
     }
+    if (event.affectsConfiguration('craftsec')) {
+      dashboard.refresh();
+    }
     logger.debug('CRAFT-Sec settings updated.');
   });
 
   context.subscriptions.push(
     logger,
     statusBar,
+    dashboard,
     sidebarRegistration,
     settingsSubscription,
     commandRegistry

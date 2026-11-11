@@ -1,28 +1,27 @@
 'use strict';
 
-const { COMMANDS, CONTAINER_ID } = require('../constants');
+const { COMMANDS } = require('../constants');
 const { getCommandDefinition } = require('./definitions');
-
-const REVEAL_CONTAINER_COMMAND = `workbench.view.extension.${CONTAINER_ID}`;
 
 /**
  * Register the dashboard command.
  *
- * Revealing the Activity Bar container is the dashboard action; no analysis
- * runs and no result notification is shown.
+ * The command opens the editor-area dashboard panel. It does not run analysis
+ * and never reports a scan result.
  *
  * @param {{
  *   vscode: import('vscode'),
  *   logger: import('../logging/output').Logger,
- *   registry: import('./registry').CommandRegistry
+ *   registry: import('./registry').CommandRegistry,
+ *   dashboard: import('../webviews/dashboardPanel').DashboardPanelController
  * }} context
  */
-function registerDashboardCommand({ vscode, logger, registry }) {
+function registerDashboardCommand({ vscode, logger, registry, dashboard }) {
   const definition = getCommandDefinition(COMMANDS.openSecurityDashboard);
 
   registry.register(definition.id, async () => {
     try {
-      await vscode.commands.executeCommand(REVEAL_CONTAINER_COMMAND);
+      dashboard.open();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`${definition.title} failed: ${message}`, error);
@@ -38,4 +37,4 @@ function registerDashboardCommand({ vscode, logger, registry }) {
   });
 }
 
-module.exports = { registerDashboardCommand, REVEAL_CONTAINER_COMMAND };
+module.exports = { registerDashboardCommand };

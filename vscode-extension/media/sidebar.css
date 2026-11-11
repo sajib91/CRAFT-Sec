@@ -33,6 +33,30 @@ main {
   padding: 14px;
 }
 
+.brand-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  border-radius: 8px;
+  color: var(--vscode-activityBar-activeBorder, var(--vscode-charts-blue, #3794ff));
+}
+
+.brand-mark svg {
+  width: 19px;
+  height: 19px;
+}
+
 .badge {
   display: inline-block;
   padding: 1px 7px;
@@ -46,18 +70,18 @@ main {
 }
 
 h1 {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   font-size: 20px;
   font-weight: 600;
 }
 
 h2 {
   margin: 0 0 8px;
+  color: var(--vscode-descriptionForeground);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--vscode-descriptionForeground);
 }
 
 p {
@@ -69,14 +93,51 @@ p {
   color: var(--vscode-descriptionForeground);
 }
 
+.hero-copy {
+  margin-top: 8px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.primary-button {
+  width: 100%;
+  min-height: 30px;
+  margin-top: 12px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary-button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.primary-button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
 .card {
   padding: 12px;
+}
+
+.card p {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11.5px;
 }
 
 .status {
   display: flex;
   align-items: center;
   margin-bottom: 8px;
+  color: var(--vscode-foreground) !important;
   font-weight: 600;
 }
 
@@ -97,7 +158,43 @@ li + li {
   margin-top: 3px;
 }
 
+.section-list {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11.5px;
+}
+
+.local-note {
+  margin-top: 8px !important;
+  font-size: 10.5px !important;
+}
+
 .notice {
   color: var(--vscode-descriptionForeground);
   font-size: 11px;
+}
+
+.noscript-warning {
+  padding: 8px;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, #f14c4c);
+  border-radius: 6px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-inputValidation-errorBackground, rgba(241, 76, 76, 0.1));
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .primary-button {
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
+}
+
+@media (forced-colors: active) {
+  .hero,
+  .card,
+  .primary-button,
+  .brand-mark {
+    border: 1px solid CanvasText;
+  }
 }
