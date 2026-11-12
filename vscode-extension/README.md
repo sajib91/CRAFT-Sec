@@ -4,9 +4,9 @@ JavaScript VS Code client for the CRAFT-Sec security framework.
 
 ## Status
 
-**Extension shell with a security dashboard.** The extension activates, registers its commands, settings, output channel, status bar item, Activity Bar container, sidebar launcher, and an editor-area **CRAFT-Sec Security Dashboard** panel. The dashboard provides 11 navigable sections and renders only the state supplied by the extension host. Every analysis command is connected to the `SecurityEngineService` interface, but the current `UnavailableSecurityEngineService` reports that the local engine is unavailable. It does **not** start the Python backend or perform analysis. Detection, SAE features, counterfactuals, steering, repair, and verification are not implemented.
+**Extension shell with a security dashboard and diagnostics pipeline.** The extension activates, registers its commands, settings, output channel, status bar item, Activity Bar container, sidebar launcher, an editor-area **CRAFT-Sec Security Dashboard** panel, and native VS Code vulnerability diagnostics with hover explanations and repair Quick Fixes. The dashboard provides 11 navigable sections and renders only the state supplied by the extension host. Every analysis command is connected to the `SecurityEngineService` interface, but the current `UnavailableSecurityEngineService` reports that the local engine is unavailable. It does **not** start the Python backend or perform analysis. Detection, SAE features, counterfactuals, steering, repair generation, and verification are not implemented.
 
-No analysis results, probabilities, or causal claims are produced by this extension. The dashboard starts empty. An explicitly labeled demo preview can populate illustrative overview, finding, CWE, and scan-history values; it deliberately leaves SAE features, interactions, steering, explanations, repairs, verification checks, and reports empty. Commands show cancellable progress while they wait and then report the engine error; they never show a placeholder success message.
+No analysis results, probabilities, or causal claims are produced by this extension. The dashboard starts empty. An explicitly labeled demo preview can populate illustrative overview, finding, CWE, and scan-history values; it deliberately leaves SAE features, interactions, steering, explanations, repairs, verification checks, and reports empty. Commands show cancellable progress while they wait and then report the engine error; they never show a placeholder success message. Diagnostics, hover content, and repair Quick Fixes are generated only from validated backend scan results, so the current build publishes no findings.
 
 ## Manifest contributions
 
@@ -37,6 +37,8 @@ All commands use the `CRAFT-Sec` category. The extension activates on startup, o
 - Validation failures are logged as warnings and shown as error messages with a **Show Logs** action.
 - Engine calls run under `window.withProgress` with a cancellable notification. Cancellation is logged and produces no error dialog.
 - Every engine-backed command calls its declared `SecurityEngineService` method. Because the service is unavailable, the call rejects with `E_ENGINE_UNAVAILABLE` and the command reports the error instead of inventing a result.
+- Successful scan results are validated and published as diagnostics; failed or cancelled scans never alter the Problems panel.
+- `craftsec.repairVulnerability` accepts an optional finding context from a diagnostic Quick Fix while retaining its no-argument Command Palette and dashboard behavior. A finding for another file is rejected before the engine call.
 - A single `CommandRegistry` owns all 12 registrations and is disposed with the extension.
 
 The publisher is set to the explicit placeholder `your-publisher-id`. Replace it with the real Marketplace publisher ID before publishing; no publisher identity is claimed by this repository.
@@ -55,6 +57,18 @@ The dashboard has 11 sections: Overview, Security Scan, Vulnerabilities, SAE Fea
 - **Webview security.** The shell uses a per-render nonce, a restrictive CSP (`default-src 'none'`, no network or inline execution), local resource roots, escaped embedded JSON, and DOM text APIs for dynamic content. The sidebar launcher has its own nonce CSP and can only post `openDashboard`.
 - **Accessibility and theming.** Navigation uses an accessible vertical tablist with keyboard support, tables have captions and scoped headers, status changes use a live region, and styling uses VS Code theme tokens with reduced-motion and forced-colors handling.
 - **Read-only settings.** Settings are displayed read-only; **Open VS Code Settings** and **Show logs** delegate to VS Code.
+
+## Vulnerability diagnostics
+
+The scan commands feed successful backend results into a native VS Code `DiagnosticCollection`. No finding is hardcoded in the extension: an empty backend result produces no diagnostics, and the extension is empty at activation.
+
+- **Required result contract.** A scan result is either a findings array or `{ findings: [...], scope?: { uris: [...] } }`. Each finding requires `id`, `message`, `severity`, and a `location` with a `file:` URI and a zero-based `range`; `cwe`, `ruleId`, `evidence`, `explanation`, `sourceReferences`, and `repair` are optional.
+- **Severity mapping.** `critical` and `high` become errors, `medium` becomes a warning, `low` becomes information, and `info` becomes a hint. Severity is taken from the backend, never inferred from the message.
+- **Problems panel.** The diagnostic uses the backend range, the concise backend message, source `CRAFT-Sec`, and the CWE identifier as clickable diagnostic code when supplied. Related information carries backend evidence and source references.
+- **Hover explanations.** Hovering a finding shows its message, severity, CWE, rule ID, backend explanation, evidence, source references, and repair eligibility. Missing explanation, sources, or repair metadata are stated explicitly rather than filled in.
+- **Repair Quick Fix.** A Quick Fix appears only when the backend sets `repair.eligible` to `true`. It invokes the existing `craftsec.repairVulnerability` command with the finding ID, document URI, range, CWE, and rule ID. The extension does not edit code or generate a patch itself.
+- **Validation and containment.** Malformed findings are rejected and logged; a malformed result envelope is rejected without clearing existing diagnostics. Findings outside an open workspace folder and non-`file:` URIs are never published. `scope.uris` or the scanned document URI clears stale diagnostics for the covered files.
+- **No live findings.** `UnavailableSecurityEngineService` rejects every scan, so the current build cannot populate diagnostics from a real analysis. Providers are tested with backend-shaped fixtures only.
 
 ## Settings
 
@@ -82,7 +96,7 @@ npm run extension:test:integration
 npm run build
 ```
 
-The unit suite (67 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable service contract, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, activates the extension, checks all registered commands, the Activity Bar container, sidebar view, and settings defaults, opens the dashboard, and verifies that a second invocation reuses the same panel tab. Tests never download models or call a security engine.
+The unit suite (105 tests) validates the manifest, command definitions and registration, editor/workspace validation, progress and error behavior, the unavailable service contract, shared identifiers, icon dimensions, the dashboard model and demo data, webview CSP/message handling, dashboard HTML and client-source constraints, the sidebar launcher, the backend finding contract, diagnostic publication and clearing, severity/CWE mapping, workspace containment, hover content and escaping, repair Quick Fix eligibility and arguments, provider registration/disposal, and the no-TypeScript constraint. The integration test launches a real VS Code Extension Host with `@vscode/test-electron`, activates the extension, checks all registered commands, the Activity Bar container, sidebar view, and settings defaults, verifies that activation publishes no hardcoded diagnostics, opens the dashboard, and verifies that a second invocation reuses the same panel tab. Tests never download models or call a security engine.
 
 ## Extension Development Host
 
@@ -96,7 +110,7 @@ To run the integration test, use `npm run extension:test:integration`. It prefer
 
 ## Packaging note
 
-The VSIX build uses `vsce package --no-dependencies` because npm workspaces hoist dependencies to the repository root; without this flag, `vsce` would package the entire repository. The current extension does not require `ajv` at runtime, but a bundling step must be added before runtime dependencies are used or the extension is published. The VSIX also lacks a repository URL and license, so it is a development artifact only.
+The VSIX build uses `vsce package --no-dependencies` because npm workspaces hoist dependencies to the repository root; without this flag, `vsce` would package the entire repository. The current VSIX contains 50 files and about 74.6 KB, including the dashboard, launcher, and diagnostics modules. The current extension does not require `ajv` at runtime, but a bundling step must be added before runtime dependencies are used or the extension is published. The VSIX also lacks a repository URL and license, so it is a development artifact only.
 
 ## Layout
 
@@ -117,6 +131,12 @@ The VSIX build uses `vsce package --no-dependencies` because npm workspaces hois
 | `src/commands/dashboardCommand.js` | Open or reveal the dashboard panel |
 | `src/commands/utilityCommands.js` | Show status and show logs |
 | `src/api/securityEngineService.js` | Service contract and unavailable implementation |
+| `src/diagnostics/findingModel.js` | Backend finding validation, severity/CWE mapping, and range helpers |
+| `src/diagnostics/diagnosticController.js` | DiagnosticCollection, finding store, scope clearing, and Problems panel publication |
+| `src/diagnostics/hoverProvider.js` | Hover explanations built only from backend finding fields |
+| `src/diagnostics/codeActionProvider.js` | Repair Quick Fixes for backend-eligible findings |
+| `src/diagnostics/index.js` | Diagnostic provider registration and disposal |
+| `src/security/paths.js` | Workspace containment checks for backend-supplied paths |
 | `src/logging/output.js` | Log output channel and level filtering |
 | `src/views/statusBar.js` | Status bar item and visibility setting |
 | `src/webviews/sidebarView.js` | Activity Bar launcher provider and `openDashboard` validation |
@@ -129,8 +149,8 @@ The VSIX build uses `vsce package --no-dependencies` because npm workspaces hois
 | `src/backend/` | Engine spawn, handshake, health, restart (future) |
 | `src/api/` | Security-engine service contract; authenticated client, SSE, schema validation (future) |
 | `src/jobs/` | Job lifecycle and progress routing (future) |
-| `src/workspace/` | Snapshots, patch approval, diagnostics (future) |
-| `src/security/` | Shared webview and path containment helpers (future) |
+| `src/workspace/` | Snapshots and patch approval (future) |
+| `src/security/` | Workspace path containment; shared webview helpers (future) |
 | `media/` | Icons, dashboard CSS/JS, and sidebar launcher CSS/JS |
 | `test/` | Unit and Extension Host integration tests |
 

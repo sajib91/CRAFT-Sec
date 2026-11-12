@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const vscode = require('vscode');
 const { COMMANDS, CONTAINER_ID, VIEW_ID } = require('../../src/constants');
 const { DASHBOARD_TITLE } = require('../../src/webviews/dashboardPanel');
+const { DIAGNOSTIC_SOURCE } = require('../../src/diagnostics/findingModel');
 
 async function waitForTab(label, timeoutMs = 3000) {
   const deadline = Date.now() + timeoutMs;
@@ -31,6 +32,17 @@ async function run() {
   for (const command of Object.values(COMMANDS)) {
     assert.ok(commands.includes(command), `${command} must be registered`);
   }
+
+  const fabricatedDiagnostics = vscode.languages
+    .getDiagnostics()
+    .filter(([, diagnostics]) =>
+      diagnostics.some((diagnostic) => diagnostic.source === DIAGNOSTIC_SOURCE)
+    );
+  assert.equal(
+    fabricatedDiagnostics.length,
+    0,
+    'activation must not publish hardcoded CRAFT-Sec diagnostics'
+  );
 
   const contributes = extension.packageJSON.contributes;
   const container = contributes.viewsContainers.activitybar.find(

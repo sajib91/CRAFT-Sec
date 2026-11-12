@@ -1,8 +1,8 @@
 # Development Setup
 
-**Status:** The macOS path was executed and verified on 2026-11-10; command-layer and dashboard verification was repeated on 2026-11-11. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
+**Status:** The macOS path was executed and verified on 2026-11-10; command-layer, dashboard, and diagnostics verification was repeated on 2026-11-12. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
 
-This repository is a scaffold. Setup installs the toolchain, and the VS Code extension shell with its dashboard can run in an Extension Development Host, but there is no FastAPI server, analyzer adapter, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or verifier yet. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
+This repository is a scaffold. Setup installs the toolchain, and the VS Code extension shell with its dashboard and diagnostics pipeline can run in an Extension Development Host, but there is no FastAPI server, analyzer adapter, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or verifier yet. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
 
 ## 1. Supported toolchain
 
@@ -242,15 +242,17 @@ All commands use the **CRAFT-Sec** category:
 | `craftsec.analyzeSecurityFeatures` | Saved file in a workspace folder | `analyzeSecurityFeatures` |
 | `craftsec.counterfactualAnalysis` | Saved file with a non-empty selection | `counterfactualAnalysis` |
 | `craftsec.generateSecureCode` | Saved file in a workspace folder | `generateSecureCode` |
-| `craftsec.repairVulnerability` | Saved file in a workspace folder | `repairVulnerability` |
+| `craftsec.repairVulnerability` | Saved file in a workspace folder; optional finding context from a diagnostic Quick Fix | `repairVulnerability` |
 | `craftsec.verifyRepair` | One or more workspace folders | `verifyRepair` |
 | `craftsec.openSecurityDashboard` | None | — |
 
-The extension activates on startup, its commands, and when the sidebar view is opened. Activation creates the output channel, status bar item, security-engine service, dashboard panel controller, command registry, settings listeners, and sidebar launcher provider. Deactivation records the transition; VS Code disposes the registered subscriptions, including the single command registry that owns all 12 registrations. No Python process is started and no analysis runs.
+The extension activates on startup, its commands, and when the sidebar view is opened. Activation creates the output channel, status bar item, security-engine service, diagnostics controller and providers, dashboard panel controller, command registry, settings listeners, and sidebar launcher provider. Deactivation records the transition; VS Code disposes the registered subscriptions, including the single command registry that owns all 12 registrations and the diagnostics feature. No Python process is started and no analysis runs.
 
 `craftsec.openSecurityDashboard` calls the injected `DashboardPanelController`, which creates or reveals a singleton editor-area panel titled **CRAFT-Sec Security Dashboard**. The dashboard is empty by default: unknown counts are `null` and result lists are empty. The **Load demo preview** action requests a separately labeled state with 18 illustrative findings and matching severity/CWE totals; it intentionally leaves SAE features, interactions, steering, explanations, repairs, verification checks, and reports empty. Dashboard action buttons may execute only the nine engine-backed commands in the controller's allowlist, with no arguments; commands that fail produce an error notice, never a success notice. The dashboard cannot write source files or apply patches.
 
 The dashboard shell is server-rendered and the client renders dynamic content with DOM text APIs. It uses a per-render nonce, `default-src 'none'`, no network or inline executable code, local resource roots, and escaped embedded JSON. Inbound webview messages are validated; unknown messages are ignored. The Activity Bar launcher has the same CSP discipline and can only send `openDashboard`.
+
+Successful file, selection, and workspace scans pass the backend result to `DiagnosticController.publishScanResult`. The controller validates the result, rejects malformed findings and paths outside the workspace, publishes a `DiagnosticCollection` for the Problems panel, and stores normalized findings for hover and Quick Fix providers. File and selection scans replace diagnostics for the scanned document; workspace scans clear files named by the backend `scope.uris`. A failed or cancelled scan never changes diagnostics. Hover shows backend explanation, evidence, sources, and repair state. A repair Quick Fix appears only when the backend sets `repair.eligible` to `true` and invokes `craftsec.repairVulnerability` with validated finding context; the extension does not edit source. Because the service is unavailable, no live findings are produced.
 
 Engine-backed commands validate the editor and workspace before calling the injected `SecurityEngineService`. Validation failures and service failures are logged and shown as error messages with a **Show Logs** action; cancelled commands are logged without an error dialog. Commands show a cancellable progress notification but never a success notification. The current `UnavailableSecurityEngineService` rejects every call with `E_ENGINE_UNAVAILABLE`, so no result is fabricated.
 
@@ -260,7 +262,7 @@ Use the **Run CRAFT-Sec Extension** launch configuration in `.vscode/launch.json
 npm run extension:test:integration
 ```
 
-This uses a locally installed VS Code when found (`CRAFTSEC_VSCODE_EXECUTABLE` overrides it), otherwise it downloads stable VS Code into the gitignored `.vscode-test/` directory. The suite activates the extension, verifies all registered commands, the Activity Bar container, sidebar view, and configuration defaults, opens the dashboard, waits for its editor tab, and verifies that a second invocation reuses the same tab.
+This uses a locally installed VS Code when found (`CRAFTSEC_VSCODE_EXECUTABLE` overrides it), otherwise it downloads stable VS Code into the gitignored `.vscode-test/` directory. The suite activates the extension, verifies all registered commands, the Activity Bar container, sidebar view, and configuration defaults, confirms that activation publishes no hardcoded CRAFT-Sec diagnostics, opens the dashboard, waits for its editor tab, and verifies that a second invocation reuses the same tab.
 
 The launch configuration itself was not clicked on this host, but the same development-extension path was loaded by the Extension Host integration test.
 
@@ -275,28 +277,28 @@ Outputs:
 - Python wheel: `security-engine/dist/craftsec_engine-0.1.0-py3-none-any.whl`
 - VSIX: `vscode-extension/craft-sec-0.1.0.vsix`
 
-The VSIX packaging command uses `--no-dependencies` because npm workspaces hoist dependencies to the repository root, and `vsce` otherwise treats the entire repository (including `.venv`) as extension content. The current packaged VSIX contains 44 files and about 60.2 KB, including the dashboard and launcher assets. It does **not** include the declared `ajv` runtime dependency; no current code requires `ajv`, but a bundling step (for example, esbuild) must be added before contract validation is implemented or the extension is published.
+The VSIX packaging command uses `--no-dependencies` because npm workspaces hoist dependencies to the repository root, and `vsce` otherwise treats the entire repository (including `.venv`) as extension content. The current packaged VSIX contains 50 files and about 74.6 KB, including the dashboard, launcher, and diagnostics modules. It does **not** include the declared `ajv` runtime dependency; no current code requires `ajv`, but a bundling step (for example, esbuild) must be added before contract validation is implemented or the extension is published.
 
 The VSIX is a development artifact. It has no repository URL or license yet, so packaging uses `--allow-missing-repository` and `--skip-license`. Do not publish it until those decisions are made.
 
 ## 11. Verification record
 
-Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-layer and dashboard verification on 2026-11-11:
+Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-layer, dashboard, and diagnostics verification on 2026-11-12:
 
 | Check | Result |
 |---|---|
 | `npm run setup -- --python python3.11 --cpu --with-analyzers` | Succeeded; reused/created `.venv`; no model downloads |
-| `npm run structure:check` | 45 required directories and 84 required files present; no TypeScript sources |
+| `npm run structure:check` | 46 required directories and 94 required files present; no TypeScript sources |
 | `npm run doctor` | Python 3.11.14; Node 25.9.0; npm 11.13.0; all declared Python packages present; Semgrep 1.185.0; Bandit 1.9.4; Docker 29.2.1 |
 | CPU-only PyTorch | `torch 2.15.0`, `torch.version.cuda is None` |
 | Tree-sitter grammars | Python, JavaScript, and TypeScript modules imported successfully |
 | `npm run lint` | Ruff passed; ESLint passed |
 | `npm run format:check` | Ruff and Prettier reported no formatting differences |
-| `npm test` | 7 pytest tests passed; 67 Node unit tests passed |
-| `npm run extension:test:integration` | Extension Host activated the extension; all 12 commands, Activity Bar container, sidebar view, settings, dashboard tab, and dashboard singleton behavior verified; VS Code 1.143.1 |
+| `npm test` | 7 pytest tests passed; 105 Node unit tests passed |
+| `npm run extension:test:integration` | Extension Host activated the extension; all 12 commands, Activity Bar container, sidebar view, settings, empty diagnostics at activation, dashboard tab, and dashboard singleton behavior verified; VS Code 1.143.1 |
 | Dashboard runtime smoke test | Headless Chrome rendered the empty and demo states across all 11 sections with no console or CSP errors; manual check, not part of `npm run check` |
 | `npm run check` | Structure, lint, format check, and both test suites passed |
-| `npm run build` | Python wheel built; 44-file, 60.2 KB VSIX packaged |
+| `npm run build` | Python wheel built; 50-file, 74.63 KB VSIX packaged |
 | `npm audit --omit=dev` | 0 production vulnerabilities |
 | `npm audit` | 4 moderate `minimatch` advisories in development tooling only |
 | Windows wheel availability | Torch CPU `win_amd64`, Semgrep `win_amd64`, and tree-sitter Windows wheels present in metadata; not executed |
@@ -326,6 +328,9 @@ The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependen
 - Windows setup commands were not executed on this macOS host.
 - The VS Code **Run CRAFT-Sec Extension** launch configuration was not clicked manually; an equivalent Extension Host run passed through `@vscode/test-electron`.
 - The extension is a shell with a dashboard. It does not start the Python backend or implement detection, SAE extraction, counterfactuals, steering, repair, or verification.
+- Diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. Because every scan currently fails with `E_ENGINE_UNAVAILABLE`, the build publishes no live findings; provider behavior is tested with backend-shaped fixtures.
+- Finding locations and source-reference file links are restricted to open workspace folders. A source reference outside the workspace is shown as text anchored at the finding instead of a clickable location. Symlink targets are not resolved.
+- The diagnostics pipeline is not exercised against a real backend, and its Windows rendering and interaction behavior were not tested because development runs on macOS.
 - The dashboard demo preview is illustrative interface data only. It is not a scan result, and it deliberately omits SAE activations, feature effects, steering results, explanations, repairs, verification checks, and reports.
 - All engine-backed commands are wired to `UnavailableSecurityEngineService`. Invoking them shows progress and then reports `E_ENGINE_UNAVAILABLE`; no analysis result, probability, or causal claim is produced.
 - Command behavior is covered by unit tests with fake VS Code and service objects. The Extension Host test verifies registration, sidebar launcher presence, dashboard panel creation, and singleton behavior; it does not inspect the rendered webview DOM or invoke engine-backed commands against a real backend.

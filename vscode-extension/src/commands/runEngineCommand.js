@@ -47,11 +47,12 @@ async function reportFailure({ vscode, logger }, commandTitle, error, expected) 
  * @param {{
  *   definition: { title: string, progressTitle: string },
  *   prepare: () => object | Promise<object>,
- *   invoke: (request: object, context: { token: import('vscode').CancellationToken, progress: import('vscode').Progress<{ message?: string }> }) => Promise<unknown>
+ *   invoke: (request: object, context: { token: import('vscode').CancellationToken, progress: import('vscode').Progress<{ message?: string }> }) => Promise<unknown>,
+ *   onResult?: (result: unknown, request: object) => void | Promise<void>
  * }} command
  * @returns {Promise<unknown>}
  */
-async function runEngineCommand(dependencies, { definition, prepare, invoke }) {
+async function runEngineCommand(dependencies, { definition, prepare, invoke, onResult }) {
   const { vscode, logger } = dependencies;
   let request;
 
@@ -82,7 +83,15 @@ async function runEngineCommand(dependencies, { definition, prepare, invoke }) {
           return undefined;
         }
         progress.report({ message: 'Waiting for the local security engine.' });
-        return invoke(request, { token, progress });
+        const result = await invoke(request, { token, progress });
+        if (token.isCancellationRequested) {
+          logger.info(`${definition.title} cancelled.`);
+          return undefined;
+        }
+        if (onResult) {
+          await onResult(result, request);
+        }
+        return result;
       }
     );
   } catch (error) {

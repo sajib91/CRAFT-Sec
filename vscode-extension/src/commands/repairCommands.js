@@ -6,6 +6,7 @@ const { registerEngineCommand } = require('./registerEngineCommand');
 const {
   requireActiveEditor,
   createEditorRequest,
+  createRepairRequest,
   createVerificationRequest
 } = require('./validation');
 
@@ -29,8 +30,8 @@ function registerRepairCommands(context) {
     createEditorRequest(vscode, requireActiveEditor(vscode))
   );
 
-  registerEngineCommand(context, getCommandDefinition(COMMANDS.repairVulnerability), () =>
-    createEditorRequest(vscode, requireActiveEditor(vscode))
+  registerEngineCommand(context, getCommandDefinition(COMMANDS.repairVulnerability), (finding) =>
+    createRepairRequest(vscode, finding)
   );
 
   registerEngineCommand(context, getCommandDefinition(COMMANDS.verifyRepair), () =>

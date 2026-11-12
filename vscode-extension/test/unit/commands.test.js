@@ -264,13 +264,41 @@ function createFakeDashboard(options = {}) {
   };
 }
 
+function createFakeDiagnostics() {
+  const publications = [];
+  return {
+    publications,
+    publishScanResult(result, options) {
+      publications.push({ result, options });
+      return { published: 0, files: [], rejected: [] };
+    }
+  };
+}
+
 function createHarness(options = {}) {
   const fake = createFakeVscode(options);
   const logger = createFakeLogger();
   const { service, calls } = createFakeService(options.serviceOverrides);
   const { dashboard, openCalls } = createFakeDashboard(options);
-  const registry = registerCommands({ vscode: fake.vscode, service, logger, dashboard });
-  return { ...fake, logger, service, calls, dashboard, openCalls, registry };
+  const { publications, ...diagnostics } = createFakeDiagnostics();
+  const registry = registerCommands({
+    vscode: fake.vscode,
+    service,
+    logger,
+    dashboard,
+    diagnostics
+  });
+  return {
+    ...fake,
+    logger,
+    service,
+    calls,
+    dashboard,
+    openCalls,
+    diagnostics,
+    publications,
+    registry
+  };
 }
 
 test('registerCommands registers every declared command exactly once', () => {
@@ -492,6 +520,34 @@ test('pre-cancelled commands report cancellation without an error notification',
   harness.registry.dispose();
 });
 
+test('a scan cancelled during the engine call publishes no diagnostics', async () => {
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')],
+    serviceOverrides: {
+      scanFile(request, context) {
+        context.token.isCancellationRequested = true;
+        return { findings: [] };
+      }
+    }
+  });
+
+  const result = await harness.handlers.get(COMMANDS.scanCurrentFile)();
+
+  assert.equal(result, undefined);
+  assert.equal(harness.calls.length, 1);
+  assert.equal(harness.publications.length, 0);
+  assert.equal(harness.errorMessages.length, 0);
+  assert.equal(harness.informationMessages.length, 0);
+  assert.ok(
+    harness.logger.entries.some(
+      (entry) => entry.level === 'info' && /cancelled/.test(entry.message)
+    )
+  );
+
+  harness.registry.dispose();
+});
+
 test('open security dashboard opens the dashboard panel', async () => {
   const harness = createHarness();
 
@@ -552,6 +608,168 @@ test('show logs opens the CRAFT-Sec output channel', async () => {
   harness.registry.dispose();
 });
 
+test('scan results are published to diagnostics with the scanned file scope', async () => {
+  const backendResult = { findings: [] };
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')],
+    serviceOverrides: {
+      scanFile: async () => backendResult
+    }
+  });
+
+  await harness.handlers.get(COMMANDS.scanCurrentFile)();
+
+  assert.equal(harness.publications.length, 1);
+  assert.equal(harness.publications[0].result, backendResult);
+  assert.deepEqual(harness.publications[0].options, {
+    scopeUris: ['file:///workspace/src/app.js']
+  });
+
+  harness.registry.dispose();
+});
+
+test('workspace scans publish diagnostics without inventing a file scope', async () => {
+  const backendResult = { findings: [], scope: { uris: ['file:///workspace/src/app.js'] } };
+  const harness = createHarness({
+    workspaceFolders: [createWorkspaceFolder('/workspace')],
+    serviceOverrides: {
+      scanWorkspace: async () => backendResult
+    }
+  });
+
+  await harness.handlers.get(COMMANDS.scanWorkspace)();
+
+  assert.equal(harness.publications.length, 1);
+  assert.equal(harness.publications[0].result, backendResult);
+  assert.equal(harness.publications[0].options, undefined);
+
+  harness.registry.dispose();
+});
+
+test('analysis commands do not publish diagnostics', async () => {
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')]
+  });
+
+  await harness.handlers.get(COMMANDS.explainVulnerability)();
+  await harness.handlers.get(COMMANDS.analyzeSecurityFeatures)();
+
+  assert.equal(harness.publications.length, 0);
+
+  harness.registry.dispose();
+});
+
+test('failed scans never publish diagnostics', async () => {
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')],
+    serviceOverrides: {
+      scanFile: async () => {
+        throw new Error('engine connection failed');
+      }
+    }
+  });
+
+  await harness.handlers.get(COMMANDS.scanCurrentFile)();
+
+  assert.equal(harness.publications.length, 0);
+  assert.equal(harness.errorMessages.length, 1);
+
+  harness.registry.dispose();
+});
+
+test('a repair Quick Fix sends finding context with the editor request', async () => {
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')]
+  });
+  const finding = {
+    findingId: 'finding-1',
+    documentUri: 'file:///workspace/src/app.js',
+    range: {
+      start: { line: 4, character: 2 },
+      end: { line: 4, character: 42 }
+    },
+    cwe: 'CWE-89',
+    ruleId: 'js/sql-injection'
+  };
+
+  await harness.handlers.get(COMMANDS.repairVulnerability)(finding);
+
+  assert.equal(harness.calls.length, 1);
+  assert.equal(harness.calls[0].method, 'repairVulnerability');
+  assert.deepEqual(harness.calls[0].request.finding, finding);
+  assert.equal(harness.calls[0].request.filePath, '/workspace/src/app.js');
+  assert.equal(harness.errorMessages.length, 0);
+
+  harness.registry.dispose();
+});
+
+test('a repair Quick Fix for another file is rejected before the engine call', async () => {
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')]
+  });
+
+  await harness.handlers.get(COMMANDS.repairVulnerability)({
+    findingId: 'finding-1',
+    documentUri: 'file:///workspace/src/other.js',
+    range: {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 5 }
+    }
+  });
+
+  assert.equal(harness.calls.length, 0);
+  assert.equal(harness.errorMessages.length, 1);
+  assert.match(harness.errorMessages[0].message, /Open the file that contains this finding/);
+
+  harness.registry.dispose();
+});
+
+test('malformed repair finding context is rejected before the engine call', async () => {
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')]
+  });
+
+  await harness.handlers.get(COMMANDS.repairVulnerability)({
+    findingId: '',
+    documentUri: 'file:///workspace/src/app.js',
+    range: {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 5 }
+    }
+  });
+
+  assert.equal(harness.calls.length, 0);
+  assert.equal(harness.errorMessages.length, 1);
+  assert.match(harness.errorMessages[0].message, /Invalid repair finding context/);
+
+  harness.registry.dispose();
+});
+
+test('registration fails atomically when the diagnostics controller is missing', () => {
+  const fake = createFakeVscode();
+  const { service } = createFakeService();
+  const { dashboard } = createFakeDashboard();
+
+  assert.throws(
+    () =>
+      registerCommands({
+        vscode: fake.vscode,
+        service,
+        logger: createFakeLogger(),
+        dashboard
+      }),
+    /diagnostics controller/
+  );
+  assert.equal(fake.handlers.size, 0);
+  assert.equal(fake.registrations.length, 0);
+});
+
 test('registration fails atomically when the service contract is incomplete', () => {
   const fake = createFakeVscode();
   const { service } = createFakeService();
@@ -559,7 +777,14 @@ test('registration fails atomically when the service contract is incomplete', ()
   delete service.verifyRepair;
 
   assert.throws(
-    () => registerCommands({ vscode: fake.vscode, service, logger: createFakeLogger(), dashboard }),
+    () =>
+      registerCommands({
+        vscode: fake.vscode,
+        service,
+        logger: createFakeLogger(),
+        dashboard,
+        diagnostics: createFakeDiagnostics()
+      }),
     /SecurityEngineService\.verifyRepair/
   );
   assert.equal(fake.handlers.size, 0);

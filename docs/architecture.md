@@ -1,6 +1,6 @@
 # CRAFT-Sec — Software Architecture
 
-**Status:** Phase 0 architecture approved for implementation. The Phase 1 scaffold, development environment, VS Code extension activation shell, command registration layer, and first editor-area security dashboard exist. The dashboard renders only supplied state plus an explicitly labeled demo preview; no analysis functionality is implemented.
+**Status:** Phase 0 architecture approved for implementation. The Phase 1 scaffold, development environment, VS Code extension activation shell, command registration layer, editor-area security dashboard, and backend-result diagnostics layer exist. The dashboard renders only supplied state plus an explicitly labeled demo preview; diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. No analysis functionality is implemented.
 **Version:** 0.1.0
 **Date:** 2026-11-11
 **Companion document:** [research-alignment.md](research-alignment.md)
@@ -119,6 +119,12 @@ CRAFT-Sec/
 │   │   │   ├── findingsTree.js
 │   │   │   ├── jobsTree.js
 │   │   │   └── statusBar.js
+│   │   ├── diagnostics/
+│   │   │   ├── findingModel.js      # backend finding validation + severity/CWE
+│   │   │   ├── diagnosticController.js # collection, finding store, scope clearing
+│   │   │   ├── hoverProvider.js     # explain findings from backend fields
+│   │   │   ├── codeActionProvider.js # repair Quick Fix for eligible findings
+│   │   │   └── index.js             # provider registration + disposal
 │   │   ├── webviews/
 │   │   │   ├── dashboardPanel.js    # singleton dashboard panel + message allowlist
 │   │   │   ├── dashboardModel.js    # 11 sections, actions, empty/demo state
@@ -130,8 +136,7 @@ CRAFT-Sec/
 │   │   │   └── panelHost.js         # future shared feature-panel host
 │   │   ├── workspace/
 │   │   │   ├── snapshot.js          # file hashing and change detection
-│   │   │   ├── patchApplier.js      # approval + hash check + WorkspaceEdit
-│   │   │   └── diagnostics.js       # findings -> VS Code diagnostics
+│   │   │   └── patchApplier.js      # approval + hash check + WorkspaceEdit
 │   │   ├── logging/output.js        # OutputChannel + log forwarding
 │   │   └── security/
 │   │       ├── webview.js           # CSP helpers
@@ -281,9 +286,9 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 | `commands/registry.js` | Own command registrations, reject duplicates, and dispose everything in reverse order | Register the same command twice |
 | `commands/validation.js` | Check saved `file:` editors, workspace containment, and selections; build request context | Analyze unsaved buffers or files outside the workspace |
 | `commands/runEngineCommand.js` | Show cancellable progress, handle cancellation, and log/report failures | Show a placeholder success notification |
-| `commands/scanCommands.js` | Register file, selection, and workspace scan commands | Bypass editor/workspace validation |
+| `commands/scanCommands.js` | Register file, selection, and workspace scan commands; publish successful results to diagnostics with the scanned scope | Bypass editor/workspace validation or publish failed scans |
 | `commands/analysisCommands.js` | Register explanation, security-feature, and counterfactual commands | Fabricate features or counterfactual effects |
-| `commands/repairCommands.js` | Register generation, repair, and verification commands | Write code to the workspace or claim verification |
+| `commands/repairCommands.js` | Register generation, repair, and verification commands; accept validated finding context from a Quick Fix | Write code to the workspace, repair a different file, or claim verification |
 | `commands/dashboardCommand.js` | Open or reveal the editor-area dashboard panel | Treat opening the dashboard as analysis success |
 | `commands/utilityCommands.js` | Report real extension/engine status and open the output channel | Claim the engine is available |
 | `views/*` | Findings tree, job tree, status bar; map backend resources to VS Code items | Recompute scores locally |
@@ -297,10 +302,14 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 | `webviews/*` (future) | Feature explorer, counterfactual matrix, steering lab, repair review; render only backend-provided claims + provenance | Invent labels, probabilities, or causal wording |
 | `workspace/snapshot.js` | Compute relative paths and hashes for change detection before requests | Follow symlinks outside the workspace |
 | `workspace/patchApplier.js` | Show diff, require explicit approval, revalidate base hashes, apply via `WorkspaceEdit`, create backup metadata | Write when hashes are stale; apply without approval |
-| `workspace/diagnostics.js` | Publish findings as diagnostics with severity mapped from documented policy | Present heuristic scores as calibrated |
+| `diagnostics/findingModel.js` | Validate the backend finding contract; normalize severity, CWE, file URI, range, evidence, references, and explicit repair eligibility | Accept unvalidated JSON or infer missing findings, scores, or repairs |
+| `diagnostics/diagnosticController.js` | Own the `DiagnosticCollection` and finding store; publish backend findings, map severity, attach CWE target, evidence, and source related information; clear scan scopes | Publish malformed or out-of-workspace findings; invent diagnostics |
+| `diagnostics/hoverProvider.js` | Render backend explanation, evidence, source references, and repair state in a non-trusted Markdown hover | Generate or embellish explanations |
+| `diagnostics/codeActionProvider.js` | Offer a Quick Fix only for backend-eligible findings and invoke the repair command with finding context | Edit source, infer eligibility, or apply patches |
+| `diagnostics/index.js` | Register the collection, hover provider, and code-action provider as one disposable | Leave providers or collections registered after disposal |
+| `security/paths.js` | Normalize and verify workspace containment for backend-supplied paths | Trust backend-supplied absolute paths |
 | `logging/output.js` | Mirror extension + backend logs into an OutputChannel with redaction | Log tokens or full source by default |
 | `security/webview.js` (future) | Consolidate nonce, CSP, and message-origin helpers for feature panels | Use `'unsafe-inline'` or remote origins |
-| `security/paths.js` | Normalize and verify workspace containment | Trust backend-supplied absolute paths |
 
 ### 5.2 Security engine
 
@@ -810,6 +819,27 @@ class PatchApplier {
   async preview(patch) {}
   async apply(patch, { approvalToken, expectedHashes }) {}
 }
+
+// diagnostics/diagnosticController.js
+class DiagnosticController {
+  publishScanResult(result, { scopeUris } = {}) {}
+  getFindingsForUri(uri) {}
+  findAt(uri, position) {}
+  getDiagnosticForFinding(finding) {}
+  clearUri(uri) {}
+  clearAll() {}
+  dispose() {}
+}
+
+// diagnostics/hoverProvider.js
+class FindingHoverProvider {
+  provideHover(document, position) {}
+}
+
+// diagnostics/codeActionProvider.js
+class FindingCodeActionProvider {
+  provideCodeActions(document, range) {}
+}
 ```
 
 ### 11.3 Extension ↔ webview protocol
@@ -831,7 +861,53 @@ The dashboard state schema carries `schemaVersion`, `dataMode` (`empty`, `demo`,
 
 The planned job/file protocol uses a richer `{ type, requestId, payload }` envelope. When implemented, it must extend the allowlist explicitly: `runCounterfactual`, `runSteering`, `openFile`, `requestRepair`, `applyRepair`, and `cancelJob`. File paths from the webview will be resolved relative to the registered project and revalidated; the webview never receives the API token.
 
-### 11.4 Patch contract
+### 11.4 Finding and diagnostic contract
+
+A successful scan returns either a findings array or this envelope:
+
+```json
+{
+  "findings": [
+    {
+      "id": "fnd_...",
+      "message": "Concise vulnerability message",
+      "severity": "high",
+      "cwe": "CWE-89",
+      "ruleId": "js/sql-injection",
+      "location": {
+        "uri": "file:///registered/root/src/app.js",
+        "range": {
+          "start": { "line": 12, "character": 4 },
+          "end": { "line": 12, "character": 48 }
+        }
+      },
+      "evidence": "Backend-supplied evidence text",
+      "explanation": "Backend-supplied explanation",
+      "sourceReferences": [
+        { "label": "CWE-89", "url": "https://cwe.mitre.org/data/definitions/89.html" }
+      ],
+      "repair": { "eligible": true, "description": "Backend-supplied repair note" }
+    }
+  ],
+  "scope": { "uris": ["file:///registered/root/src/app.js"] }
+}
+```
+
+Rules:
+
+1. `id`, `message`, `severity`, and `location` are mandatory. `cwe`, `ruleId`, `evidence`, `explanation`, `sourceReferences`, and `repair` are optional. Missing optional fields stay absent.
+2. Ranges are zero-based, matching VS Code and LSP. `line` and `character` must be non-negative integers, and `end` must not precede `start`.
+3. `severity` is one of `critical`, `high`, `medium`, `low`, or `info`. Mapping is `critical`/`high` → error, `medium` → warning, `low` → information, `info` → hint.
+4. `cwe` must use `CWE-<number>`. It becomes the diagnostic code with a MITRE CWE target link and is shown in hover.
+5. `location.uri` and source-reference `uri` values must use the `file:` scheme and fall inside an open workspace folder. Source-reference `url` values must use `http:` or `https:`.
+6. A malformed finding is rejected and logged; a malformed envelope or scope rejects the whole result without replacing existing diagnostics.
+7. `repair.eligible` must be an explicit boolean. No severity, message, or heuristic is used to infer repair eligibility.
+8. `scope.uris`, or the scanned document URI for file/selection scans, replaces diagnostics for those files; an empty result clears them. A workspace scan without scope cannot clear files it does not mention.
+9. A repair Quick Fix invokes `craftsec.repairVulnerability` with `{ findingId, documentUri, range, cwe?, ruleId? }`. The command validates that the finding belongs to the active saved file and then includes the validated context in the engine request. It does not edit source.
+
+The Problems panel is populated solely by the `DiagnosticCollection`. Hover and code actions read the same normalized finding store, so all three surfaces agree on the backend data.
+
+### 11.5 Patch contract
 
 ```json
 {
@@ -991,7 +1067,7 @@ Resource defaults:
 | Integration | Modules compose over a real SQLite DB and API | Job lifecycle, SSE replay, cancellation, stale snapshot conflict |
 | Model mechanics | Hooks and activation capture work on a small local model | Shape/alignment tests; no research claims from these tests |
 | Sandbox | Isolation policy is enforced | Network denied under Docker; host paths invisible; timeout kills process group |
-| Extension | Commands, views, webviews, patch approval behave | `@vscode/test-electron`; CSP/message validation; stale-hash rejection |
+| Extension | Commands, views, webviews, diagnostics, patch approval behave | `@vscode/test-electron`; CSP/message validation; stale-hash rejection; malformed finding rejection; no hardcoded diagnostics at activation |
 | End-to-end | A user flow completes with explicit capability states | Static-only analysis; gated SAE flow with a registered artifact; verified repair flow |
 
 **Synthetic fixture policy.** Unit tests may construct toy SAE tensors to test arithmetic (e.g., a random orthogonal decoder). Such fixtures are labelled `synthetic-test-only`, live under `tests/fixtures/`, and cannot be registered in the production SAE registry. Production code must never generate activations or feature values it did not measure. Test fixtures must never be used to produce research results or UI claims.

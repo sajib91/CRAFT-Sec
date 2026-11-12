@@ -8,6 +8,7 @@ const { registerCommands } = require('./commands');
 const { registerSidebarView } = require('./webviews/sidebarView');
 const { DashboardPanelController } = require('./webviews/dashboardPanel');
 const { buildDashboardState } = require('./webviews/dashboardModel');
+const { registerDiagnostics } = require('./diagnostics');
 const { onSettingsChanged, readSettings } = require('./config');
 
 /** @type {import('./logging/output').Logger | undefined} */
@@ -29,6 +30,7 @@ function activate(context) {
 
   const statusBar = createStatusBar();
   const service = createSecurityEngineService();
+  const diagnostics = registerDiagnostics({ vscode, logger });
   const dashboard = new DashboardPanelController({
     vscode,
     extensionUri: context.extensionUri,
@@ -39,7 +41,13 @@ function activate(context) {
         settings: readSettings()
       })
   });
-  const commandRegistry = registerCommands({ vscode, service, logger, dashboard });
+  const commandRegistry = registerCommands({
+    vscode,
+    service,
+    logger,
+    dashboard,
+    diagnostics: diagnostics.controller
+  });
   const sidebarRegistration = registerSidebarView(context, logger);
 
   const settingsSubscription = onSettingsChanged((event) => {
@@ -59,6 +67,7 @@ function activate(context) {
     logger,
     statusBar,
     dashboard,
+    diagnostics,
     sidebarRegistration,
     settingsSubscription,
     commandRegistry

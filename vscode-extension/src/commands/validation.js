@@ -1,5 +1,12 @@
 'use strict';
 
+const {
+  FindingValidationError,
+  normalizeFileUri,
+  normalizeRange,
+  normalizeCwe
+} = require('../diagnostics/findingModel');
+
 class CommandValidationError extends Error {
   /**
    * @param {string} message
@@ -117,6 +124,84 @@ function createEditorRequest(vscode, editor) {
 }
 
 /**
+ * Validate the finding context attached to a repair Quick Fix. Absence of a
+ * finding context is valid because the command is also callable from the
+ * Command Palette and dashboard.
+ *
+ * @param {unknown} value
+ * @returns {{
+ *   findingId: string,
+ *   documentUri: string,
+ *   range: ReturnType<typeof normalizeRange>,
+ *   cwe?: string,
+ *   ruleId?: string
+ * } | undefined}
+ */
+function normalizeRepairFindingArgument(value) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new CommandValidationError(
+      'Invalid repair finding context: expected an object.',
+      'E_INVALID_FINDING_CONTEXT'
+    );
+  }
+
+  try {
+    if (typeof value.findingId !== 'string' || value.findingId.trim().length === 0) {
+      throw new FindingValidationError('findingId must be a non-empty string.');
+    }
+
+    const finding = {
+      findingId: value.findingId.trim(),
+      documentUri: normalizeFileUri(value.documentUri, 'documentUri'),
+      range: normalizeRange(value.range, 'range')
+    };
+    if (value.cwe !== undefined && value.cwe !== null) {
+      finding.cwe = normalizeCwe(value.cwe);
+    }
+    if (value.ruleId !== undefined && value.ruleId !== null) {
+      if (typeof value.ruleId !== 'string' || value.ruleId.trim().length === 0) {
+        throw new FindingValidationError('ruleId must be a non-empty string.');
+      }
+      finding.ruleId = value.ruleId.trim();
+    }
+    return finding;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new CommandValidationError(
+      `Invalid repair finding context: ${message}`,
+      'E_INVALID_FINDING_CONTEXT'
+    );
+  }
+}
+
+/**
+ * Build a repair request for either the active editor or a specific finding
+ * supplied by a Quick Fix. The finding must belong to the active document so
+ * a repair request cannot silently target a different file.
+ *
+ * @param {import('vscode')} vscode
+ * @param {unknown} [findingArgument]
+ * @returns {object}
+ */
+function createRepairRequest(vscode, findingArgument) {
+  const request = createEditorRequest(vscode, requireActiveEditor(vscode));
+  const finding = normalizeRepairFindingArgument(findingArgument);
+  if (!finding) {
+    return request;
+  }
+  if (finding.documentUri !== request.documentUri) {
+    throw new CommandValidationError(
+      'Open the file that contains this finding before requesting a repair.',
+      'E_FINDING_DOCUMENT_MISMATCH'
+    );
+  }
+  return { ...request, finding };
+}
+
+/**
  * @param {import('vscode')} vscode
  */
 function createWorkspaceRequest(vscode) {
@@ -170,6 +255,8 @@ module.exports = {
   requireSelection,
   serializeSelection,
   createEditorRequest,
+  normalizeRepairFindingArgument,
+  createRepairRequest,
   createWorkspaceRequest,
   createVerificationRequest
 };

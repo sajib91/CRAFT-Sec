@@ -15,10 +15,11 @@ const { runEngineCommand } = require('./runEngineCommand');
  *   registry: import('./registry').CommandRegistry
  * }} context
  * @param {{ id: string, title: string, progressTitle: string, serviceMethod: string | null }} definition
- * @param {() => object | Promise<object>} prepare
+ * @param {(...args: unknown[]) => object | Promise<object>} prepare
+ * @param {{ onResult?: (result: unknown, request: object) => void | Promise<void> }} [options]
  * @returns {import('vscode').Disposable}
  */
-function registerEngineCommand(context, definition, prepare) {
+function registerEngineCommand(context, definition, prepare, options = {}) {
   const { vscode, service, logger, registry } = context;
   const { serviceMethod } = definition;
 
@@ -32,13 +33,14 @@ function registerEngineCommand(context, definition, prepare) {
     );
   }
 
-  return registry.register(definition.id, () =>
+  return registry.register(definition.id, (...args) =>
     runEngineCommand(
       { vscode, logger },
       {
         definition,
-        prepare,
-        invoke: (request, engineContext) => method.call(service, request, engineContext)
+        prepare: () => prepare(...args),
+        invoke: (request, engineContext) => method.call(service, request, engineContext),
+        onResult: options.onResult
       }
     )
   );
