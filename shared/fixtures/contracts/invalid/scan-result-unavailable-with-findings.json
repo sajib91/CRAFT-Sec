@@ -1,0 +1,85 @@
+{
+  "scanId": "scan-0001",
+  "requestId": "req-0001",
+  "apiVersion": "v1",
+  "status": "partial",
+  "analysisAvailable": false,
+  "filesScanned": 1,
+  "findings": [
+    {
+      "findingId": "finding-0001",
+      "filePath": "/workspace/src/app.py",
+      "documentUri": "file:///workspace/src/app.py",
+      "location": {
+        "start": {
+          "line": 10,
+          "column": 4
+        },
+        "end": {
+          "line": 10,
+          "column": 20
+        }
+      },
+      "cwe": "CWE-89",
+      "severity": "high",
+      "title": "Unsanitized input reaches a SQL query",
+      "ruleId": "craftsec.static.sql-injection",
+      "evidenceSources": [
+        {
+          "kind": "static",
+          "source": "semgrep",
+          "detail": "Static rule matched the flagged location."
+        },
+        {
+          "kind": "sae_feature",
+          "source": "sae-artifact-01",
+          "detail": "Feature 1234 activated above the configured threshold."
+        }
+      ],
+      "riskScore": {
+        "value": 0.72,
+        "kind": "heuristic",
+        "interpretation": "heuristic_risk",
+        "band": "high"
+      },
+      "explanation": "Static rule evidence and an SAE feature both support this finding. The score is a documented heuristic risk, not a probability.",
+      "suggestedRemediation": "Use a parameterized query instead of string formatting.",
+      "provenance": {
+        "producer": "craftsec-engine",
+        "producerVersion": "0.1.0",
+        "generatedAt": "2026-11-13T00:00:00Z",
+        "source": "hybrid"
+      },
+      "limitations": [
+        "The SAE feature is unlabelled."
+      ]
+    }
+  ],
+  "warnings": [],
+  "limitations": [
+    "Detection is limited to the analyzers and artifacts available for this run."
+  ],
+  "startedAt": "2026-11-13T00:00:00Z",
+  "completedAt": "2026-11-13T00:00:02Z",
+  "scope": {
+    "uris": [
+      "file:///workspace/src/app.py"
+    ]
+  },
+  "stages": [
+    {
+      "stage": "file_snapshot",
+      "status": "ok"
+    },
+    {
+      "stage": "detection",
+      "status": "ok"
+    }
+  ],
+  "provenance": {
+    "producer": "craftsec-engine",
+    "producerVersion": "0.1.0",
+    "generatedAt": "2026-11-13T00:00:02Z",
+    "source": "hybrid"
+  }
+}

@@ -1,6 +1,6 @@
 # CRAFT-Sec — Software Architecture
 
-**Status:** Phase 0 architecture approved for implementation. The Phase 1 scaffold, development environment, VS Code extension activation shell, command registration layer, editor-area security dashboard, and backend-result diagnostics layer exist. The dashboard renders only supplied state plus an explicitly labeled demo preview; diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. No analysis functionality is implemented.
+**Status:** Phase 0 architecture approved for implementation. The Phase 1 scaffold, development environment, VS Code extension activation shell, command registration layer, editor-area security dashboard, backend-result diagnostics layer, versioned FastAPI engine API, and live local HTTP transport between the extension and engine exist. File and workspace inspection are implemented; the extension performs health checks, file scans, selection detection requests, and workspace scans against the real backend, including caller-supplied unsaved source text under explicit source-sharing settings. All research analysis stages report explicit `unavailable` statuses. The dashboard renders only supplied state plus an explicitly labeled demo preview; diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. No vulnerability detection, SAE feature extraction, counterfactual, steering, repair, or verification capability is implemented.
 **Version:** 0.1.0
 **Date:** 2026-11-11
 **Companion document:** [research-alignment.md](research-alignment.md)
@@ -41,7 +41,7 @@ These are enforced in code, not merely documented.
 
 | ID | Invariant | Enforcement point |
 |----|-----------|-------------------|
-| I1 | **Capability honesty.** A missing SAE, model, analyzer, or sandbox is reported as unavailable. It is never emulated. | `/api/v1/capabilities`; stage scheduler; UI feature gates |
+| I1 | **Capability honesty.** A missing SAE, model, analyzer, or sandbox is reported as unavailable. It is never emulated. | `/api/v1/health`; stage scheduler; UI feature gates |
 | I2 | **Evidence provenance.** Every finding, effect, patch, and verdict references producer, version, input snapshot, and artifact hash. | Schemas require `provenance`; artifact store is content-addressed |
 | I3 | **Score semantics.** Every score carries `score_kind` (`heuristic`, `model_logit`, `calibrated`). Only `calibrated` may be described as a probability. | Pydantic validators; UI renderers; report generator |
 | I4 | **Interventional scope.** Counterfactual results describe model behaviour under named interventions, not real-world causal effects. | Result schemas include `scope: model_intervention`; mandatory wording in UI |
@@ -98,8 +98,11 @@ CRAFT-Sec/
 │   │   │   ├── manager.js           # spawn, handshake, health, restart
 │   │   │   └── handshake.js         # token + workspace roots over stdin/stdout
 │   │   ├── api/
-│   │   │   ├── securityEngineService.js # command-facing engine contract
-│   │   │   ├── client.js            # authenticated fetch, retries, cancellation
+│   │   │   ├── securityEngineService.js # command-facing engine contract + HTTP mapping
+│   │   │   ├── apiClient.js          # fetch transport, timeouts, cancellation
+│   │   │   ├── configurationService.js # URL/timeout/token/consent rules
+│   │   │   ├── securityResultService.js # response schema validation
+│   │   │   ├── client.js            # future SSE/auth extensions
 │   │   │   ├── sse.js               # streaming event parser with resume
 │   │   │   └── validate.js          # Ajv validators compiled from shared schemas
 │   │   ├── jobs/controller.js       # job lifecycle, progress, result routing
@@ -135,7 +138,8 @@ CRAFT-Sec/
 │   │   │   ├── html.js              # escaping + safe JSON serialization
 │   │   │   └── panelHost.js         # future shared feature-panel host
 │   │   ├── workspace/
-│   │   │   ├── snapshot.js          # file hashing and change detection
+│   │   │   ├── workspaceService.js  # request builders + source consent
+│   │   │   ├── snapshot.js          # future file hashing and change detection
 │   │   │   └── patchApplier.js      # approval + hash check + WorkspaceEdit
 │   │   ├── logging/output.js        # OutputChannel + log forwarding
 │   │   └── security/
@@ -275,22 +279,25 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 | Module | Responsibilities | Must not |
 |--------|------------------|----------|
 | `src/extension.js` | Activate/deactivate, construct services, register disposables, enforce single instance | Contain analysis logic |
-| `config.js` | Read settings, validate combinations, bridge secrets from `SecretStorage` to child env | Persist secrets in settings or logs |
-| `backend/manager.js` | Locate Python, spawn `python -m craftsec`, pass handshake via stdin, capture stdout/stderr, health poll, restart with backoff, terminate process group | Bind a fixed public port; ignore crash loops |
-| `api/client.js` | Bearer-authenticated fetch, timeouts, bounded retries for idempotent calls, cancellation | Retry non-idempotent mutations blindly |
+| `config.js` | Read settings, validate backend URL/timeouts/source-sharing rules, bridge environment tokens to the API client | Persist secrets in settings or logs |
+| `backend/manager.js` | Locate Python, spawn `python -m craftsec`, pass handshake via stdin, capture stdout/stderr, health poll, restart with backoff, terminate process group (future; current builds connect to an already-running backend) | Bind a fixed public port; ignore crash loops |
+| `api/apiClient.js` | Platform-fetch transport with timeouts, cancellation, optional bearer auth, bounded responses, and RFC 9457 problem parsing | Retry non-idempotent requests blindly; log request bodies or tokens |
+| `api/configurationService.js` | Validate the backend origin, normalize timeouts, read the environment token and source-sharing consent | Accept credentialed, pathed, or non-HTTP URLs |
+| `api/securityResultService.js` | Validate health, operation envelopes, stages, scans, detection findings, and analysis results | Convert `unavailable` or `analysisAvailable: false` into a clean result |
 | `api/sse.js` | Parse SSE over `fetch` streaming, resume with `Last-Event-ID`, heartbeat timeout | Use `EventSource` (cannot send auth headers) |
 | `api/validate.js` | Ajv validation of every request body and response payload against shared schemas | Accept unvalidated JSON |
 | `jobs/controller.js` | Track job state, route progress to views, persist last event id, surface warnings/errors | Treat `partial` as success |
-| `api/securityEngineService.js` | Define the command-facing engine contract; the unavailable implementation rejects with a typed `E_ENGINE_UNAVAILABLE` error | Invent analysis results or success responses |
+| `api/securityEngineService.js` | Define the command-facing engine contract; map validated editor/workspace requests to backend routes and validate responses; retain an explicit unavailable implementation for callers without configuration | Invent analysis results or success responses; forward source text without consent |
 | `commands/index.js` | Register every declared command, verify the complete set, and return one composite disposable | Leave partial registrations after an error |
 | `commands/registry.js` | Own command registrations, reject duplicates, and dispose everything in reverse order | Register the same command twice |
-| `commands/validation.js` | Check saved `file:` editors, workspace containment, and selections; build request context | Analyze unsaved buffers or files outside the workspace |
+| `commands/validation.js` | Re-export the workspace request builders and editor/workspace/selection guards | Analyze files outside the workspace |
+| `workspace/workspaceService.js` | Build editor and workspace requests, enforce source-sharing consent and workspace metadata limits, validate repair finding context | Send file contents from a workspace scan or source text without consent |
 | `commands/runEngineCommand.js` | Show cancellable progress, handle cancellation, and log/report failures | Show a placeholder success notification |
-| `commands/scanCommands.js` | Register file, selection, and workspace scan commands; publish successful results to diagnostics with the scanned scope | Bypass editor/workspace validation or publish failed scans |
+| `commands/scanCommands.js` | Register file, selection, and workspace scan commands; publish successful results to diagnostics with the scanned scope; report unavailable analysis | Bypass editor/workspace validation, publish failed scans, or treat empty findings as clean |
 | `commands/analysisCommands.js` | Register explanation, security-feature, and counterfactual commands | Fabricate features or counterfactual effects |
 | `commands/repairCommands.js` | Register generation, repair, and verification commands; accept validated finding context from a Quick Fix | Write code to the workspace, repair a different file, or claim verification |
 | `commands/dashboardCommand.js` | Open or reveal the editor-area dashboard panel | Treat opening the dashboard as analysis success |
-| `commands/utilityCommands.js` | Report real extension/engine status and open the output channel | Claim the engine is available |
+| `commands/utilityCommands.js` | Perform a live backend health check, report reachability and unavailable analysis, and open the output channel | Claim the engine or analysis is available |
 | `views/*` | Findings tree, job tree, status bar; map backend resources to VS Code items | Recompute scores locally |
 | `webviews/dashboardPanel.js` | Own the singleton dashboard panel, local-resource roots, per-render nonce CSP, validated messages, allowlisted command execution, refresh, and disposal | Execute arbitrary command IDs or arguments, write files, or apply patches |
 | `webviews/dashboardModel.js` | Define the 11-section navigation, action metadata, empty state, explicitly labeled demo state, and unavailable capability schemas | Invent findings, features, probabilities, causal effects, repairs, or verification results |
@@ -348,29 +355,35 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 
 `shared/schemas/` is the single source of truth for every cross-process payload. Python Pydantic models are generated from JSON Schema; the extension compiles Ajv validators from the same files. Generated artifacts are checked in and verified by a CI drift test. Schema changes require a contract version bump and migration notes.
 
-Core schemas:
+Core schemas implemented in this phase:
 
 | Schema | Purpose |
 |--------|---------|
-| `common.json` | IDs, timestamps, provenance, claim kind, pagination |
-| `error.json` | Problem-details envelope and error codes |
-| `capabilities.json` | Available models, SAEs, analyzers, sandbox backends, feature flags |
-| `project.json` | Project registration, snapshot, file manifest summary |
-| `job.json` | Job request/state/result envelope |
-| `events.json` | SSE event payloads |
-| `finding.json` | Findings, locations, severity, score semantics, evidence refs |
-| `feature.json` | SAE artifact cards, feature cards, feature runs |
-| `counterfactual.json` | Interventions, effects, interactions, validity, budgets |
-| `steering.json` | Plans, guardrails, paired evaluation results |
-| `repair.json` | Patch proposal, per-file hashes, diff, approval state |
-| `verification.json` | Profiles, checks, verdicts, artifacts |
-| `experiment.json` | Run manifest, config, dataset/artifact references, export |
+| `common.json` | IDs, timestamps, locations, evidence sources, risk scores, provenance |
+| `scan-request.json` | File scan request and consent-gated source context |
+| `scan-result.json` | Scan status, findings, scope, stage reports, availability |
+| `vulnerability-finding.json` | Findings, locations, CWE, severity, score semantics, evidence, remediation |
+| `feature-extraction-result.json` | SAE features and coverage |
+| `counterfactual-result.json` | Interventions, effects, validity, budgets |
+| `steering-result.json` | Plans, guardrails, limited evaluation |
+| `explanation-result.json` | Claims and explanation graph |
+| `repair-candidate.json` | Patch proposal, touched files, approval state |
+| `verification-result.json` | Profiles, checks, verdicts, artifacts |
+| `experiment-metadata.json` | Run metadata, config, dataset/artifact references |
+| `manifest.json` | Contract-to-schema-and-fixture map |
+
+Additional target schemas (`error.json`, `capabilities.json`, `project.json`,
+`job.json`, `events.json`) are not yet present.
 
 ---
 
 ## 6. Runtime and process model
 
 ### 6.1 Lifecycle
+
+Target lifecycle; the extension-managed backend handshake, jobs, and SSE stream
+are not implemented yet. The current server is started manually and exposes the
+synchronous operation API in [api.md](api.md).
 
 ```mermaid
 sequenceDiagram
@@ -383,7 +396,6 @@ sequenceDiagram
     P->>P: Bind 127.0.0.1:0, initialize DB, inspect capabilities
     P-->>E: stdout ready line (port, pid, api_version, token fingerprint)
     E->>P: GET /api/v1/health (Bearer)
-    E->>P: GET /api/v1/capabilities
     E->>E: Enable/disable commands and views
     U->>E: Run analysis
     E->>P: POST /api/v1/analyses
@@ -434,7 +446,33 @@ sequenceDiagram
 5. Source code is referenced by project + relative path, not re-uploaded per request. The backend reads from registered roots.
 6. Versioning is explicit: `/api/v1`, `contract_version`, and a major/minor compatibility check at startup.
 
-### 7.2 Endpoint surface (initial contract)
+### 7.2 Endpoint surface
+
+#### Implemented operation API
+
+| Method | Path | Purpose | Mode |
+|--------|------|---------|------|
+| GET | `/api/v1/health` | Liveness, uptime, explicit capability flags | Sync |
+| POST | `/api/v1/scan/file` | Inspect one allowlisted file; run available scan stages | Sync |
+| POST | `/api/v1/scan/workspace` | Discover allowlisted workspace sources; run available scan stages | Sync |
+| POST | `/api/v1/detection/analyze` | Evidence fusion and detection | Sync |
+| POST | `/api/v1/explanation/analyze` | Evidence-grounded explanation | Sync |
+| POST | `/api/v1/features/extract` | Activation/SAE feature extraction | Sync |
+| POST | `/api/v1/counterfactual/analyze` | Model-internal feature interventions | Sync |
+| POST | `/api/v1/prevention/steer` | Explicit opt-in activation steering | Sync |
+| POST | `/api/v1/repair/generate` | Repair proposal for user review | Sync |
+| POST | `/api/v1/verification/run` | Independent verification | Sync |
+
+The implemented API returns a typed operation envelope with per-stage status
+(`ok`, `partial`, `skipped`, `unavailable`, `failed`). Analysis stages currently
+return `unavailable`, and no findings, features, effects, patches, or verdicts
+are fabricated. Envelope, error, auth, and limit details are in
+[api.md](api.md).
+
+#### Target full contract (not yet implemented)
+
+The table below remains the design target for jobs, project registration,
+artifacts, and persisted analyses. It is not the currently exposed surface.
 
 | Method | Path | Purpose | Mode |
 |--------|------|---------|------|
@@ -857,7 +895,7 @@ The implemented dashboard uses validated messages rather than a generic request 
 
 The host sends `{ type: 'state', state }` and `{ type: 'notice', level, message }`. The initial state is also embedded in the document as escaped `application/json` data. Unknown or malformed messages are logged and ignored. The panel rejects command IDs outside its allowlist and never accepts command arguments from the webview.
 
-The dashboard state schema carries `schemaVersion`, `dataMode` (`empty`, `demo`, or `live`), canonical sections and actions, engine metadata, summary counts, distributions, scan history, findings, SAE/interaction/steering capability states, explanations, repairs, verification, reports, and read-only settings. `live` currently resolves to the empty state because no backend exists; the dashboard does not invent live results.
+The dashboard state schema carries `schemaVersion`, `dataMode` (`empty`, `demo`, or `live`), canonical sections and actions, engine metadata, summary counts, distributions, scan history, findings, SAE/interaction/steering capability states, explanations, repairs, verification, reports, and read-only settings. `live` currently resolves to the empty state because the dashboard is not connected to the backend; the dashboard does not invent live results.
 
 The planned job/file protocol uses a richer `{ type, requestId, payload }` envelope. When implemented, it must extend the allowlist explicitly: `runCounterfactual`, `runSteering`, `openFile`, `requestRepair`, `applyRepair`, and `cancelJob`. File paths from the webview will be resolved relative to the registered project and revalidated; the webview never receives the API token.
 

@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://craftsec.local/schemas/v1/verification-result.json",
+  "title": "VerificationResult",
+  "description": "Independent verification outcome. An unavailable analysis must report not_run with no checks, and a passed verdict requires available analysis.",
+  "type": "object",
+  "required": [
+    "analysisAvailable",
+    "verdict",
+    "profile",
+    "sandboxBackend",
+    "checks",
+    "limitations"
+  ],
+  "properties": {
+    "analysisAvailable": {
+      "type": "boolean"
+    },
+    "repairId": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "verdict": {
+      "enum": ["passed", "failed", "inconclusive", "not_run"]
+    },
+    "profile": {
+      "enum": ["static_only", "sandbox"]
+    },
+    "sandboxBackend": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "checks": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/Check"
+      }
+    },
+    "limitations": {
+      "$ref": "common.json#/$defs/Limitations"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Check": {
+      "type": "object",
+      "required": ["checkId", "kind", "name", "status"],
+      "properties": {
+        "checkId": {
+          "$ref": "common.json#/$defs/Identifier"
+        },
+        "kind": {
+          "enum": ["security", "functional", "build", "lint", "other"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "status": {
+          "enum": ["passed", "failed", "skipped", "error"]
+        },
+        "details": {
+          "type": ["string", "null"],
+          "maxLength": 50000
+        },
+        "evidenceSources": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "common.json#/$defs/EvidenceSource"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "analysisAvailable": {
+            "const": false
+          }
+        },
+        "required": ["analysisAvailable"]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "verdict": {
+            "const": "not_run"
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "verdict": {
+            "const": "passed"
+          }
+        },
+        "required": ["verdict"]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "analysisAvailable": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}

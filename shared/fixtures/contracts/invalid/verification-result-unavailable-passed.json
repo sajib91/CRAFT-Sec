@@ -1,0 +1,33 @@
+{
+  "analysisAvailable": false,
+  "repairId": "repair-0001",
+  "verdict": "passed",
+  "profile": "static_only",
+  "sandboxBackend": "none",
+  "checks": [
+    {
+      "checkId": "check-01",
+      "kind": "security",
+      "name": "Static analyzer re-scan",
+      "status": "passed",
+      "details": "No matching rule reports remain for the patched location.",
+      "evidenceSources": [
+        {
+          "kind": "static",
+          "source": "semgrep"
+        }
+      ]
+    },
+    {
+      "checkId": "check-02",
+      "kind": "functional",
+      "name": "Existing test suite",
+      "status": "skipped",
+      "details": "The static-only profile does not execute tests."
+    }
+  ],
+  "limitations": [
+    "Functional tests were not run in the static-only profile.",
+    "A passed static check is not a proof of security."
+  ]
+}

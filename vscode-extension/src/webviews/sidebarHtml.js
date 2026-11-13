@@ -60,8 +60,8 @@ function createSidebarHtml({ cspSource, styleUri, scriptUri, nonce }) {
           <span>Not connected</span>
         </p>
         <p>
-          The local security engine is not implemented in this build. The dashboard reports
-          unavailable capabilities explicitly and does not simulate results.
+          The extension connects to the local security engine when it is running. The dashboard
+          reports unavailable capabilities explicitly and does not simulate results.
         </p>
       </section>
 

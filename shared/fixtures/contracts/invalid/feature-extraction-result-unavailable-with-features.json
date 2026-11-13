@@ -1,0 +1,23 @@
+{
+  "analysisAvailable": false,
+  "saeArtifactId": "sae-artifact-01",
+  "modelId": "model-01",
+  "layer": 12,
+  "hookPoint": "blocks.12.hook_resid_post",
+  "aggregation": "max",
+  "coverage": 0.87,
+  "features": [
+    {
+      "featureIndex": 1234,
+      "activation": 8.2,
+      "evidenceClass": "sae_feature",
+      "label": null,
+      "description": null,
+      "topExamples": []
+    }
+  ],
+  "limitations": [
+    "Feature labels are unavailable for this artifact.",
+    "Activations describe the model, not real-world exploitability."
+  ]
+}

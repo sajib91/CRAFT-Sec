@@ -1,0 +1,141 @@
+{
+  "contractVersion": "0.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "schemas": {
+    "ScanRequest": {
+      "schema": "scan-request.json",
+      "validFixtures": ["scan-request.json"]
+    },
+    "ScanResult": {
+      "schema": "scan-result.json",
+      "validFixtures": ["scan-result.json"]
+    },
+    "VulnerabilityFinding": {
+      "schema": "vulnerability-finding.json",
+      "validFixtures": [
+        "vulnerability-finding-heuristic.json",
+        "vulnerability-finding-calibrated.json"
+      ]
+    },
+    "FeatureExtractionResult": {
+      "schema": "feature-extraction-result.json",
+      "validFixtures": ["feature-extraction-result.json"]
+    },
+    "CounterfactualResult": {
+      "schema": "counterfactual-result.json",
+      "validFixtures": ["counterfactual-result.json"]
+    },
+    "SteeringResult": {
+      "schema": "steering-result.json",
+      "validFixtures": ["steering-result.json"]
+    },
+    "ExplanationResult": {
+      "schema": "explanation-result.json",
+      "validFixtures": ["explanation-result.json"]
+    },
+    "RepairCandidate": {
+      "schema": "repair-candidate.json",
+      "validFixtures": ["repair-candidate.json"]
+    },
+    "VerificationResult": {
+      "schema": "verification-result.json",
+      "validFixtures": ["verification-result.json"]
+    },
+    "ExperimentMetadata": {
+      "schema": "experiment-metadata.json",
+      "validFixtures": ["experiment-metadata.json"]
+    }
+  },
+  "invalidFixtures": [
+    {
+      "schema": "VulnerabilityFinding",
+      "fixture": "invalid/vulnerability-finding-missing-risk-score.json",
+      "keyword": "required",
+      "reason": "riskScore is mandatory"
+    },
+    {
+      "schema": "VulnerabilityFinding",
+      "fixture": "invalid/vulnerability-finding-heuristic-labeled-probability.json",
+      "keyword": "const",
+      "reason": "a heuristic score must not be labelled calibrated_probability"
+    },
+    {
+      "schema": "VulnerabilityFinding",
+      "fixture": "invalid/vulnerability-finding-calibrated-without-calibrator.json",
+      "keyword": "required",
+      "reason": "calibrated scores require calibrator evidence"
+    },
+    {
+      "schema": "VulnerabilityFinding",
+      "fixture": "invalid/vulnerability-finding-unexpected-field.json",
+      "keyword": "additionalProperties",
+      "reason": "unknown fields are rejected"
+    },
+    {
+      "schema": "VulnerabilityFinding",
+      "fixture": "invalid/vulnerability-finding-heuristic-out-of-range.json",
+      "keyword": "maximum",
+      "reason": "heuristic risk values are bounded to [0, 1]"
+    },
+    {
+      "schema": "ScanRequest",
+      "fixture": "invalid/scan-request-missing-workspace-root.json",
+      "keyword": "required",
+      "reason": "workspaceRoot is mandatory"
+    },
+    {
+      "schema": "ScanRequest",
+      "fixture": "invalid/scan-request-unexpected-field.json",
+      "keyword": "additionalProperties",
+      "reason": "unknown request fields are rejected"
+    },
+    {
+      "schema": "ScanResult",
+      "fixture": "invalid/scan-result-unavailable-with-findings.json",
+      "keyword": "maxItems",
+      "reason": "unavailable analysis must not contain findings"
+    },
+    {
+      "schema": "FeatureExtractionResult",
+      "fixture": "invalid/feature-extraction-result-unavailable-with-features.json",
+      "keyword": "maxItems",
+      "reason": "unavailable feature extraction must not contain features"
+    },
+    {
+      "schema": "CounterfactualResult",
+      "fixture": "invalid/counterfactual-result-unavailable-with-effects.json",
+      "keyword": "maxItems",
+      "reason": "unavailable counterfactual analysis must not contain effects"
+    },
+    {
+      "schema": "ExplanationResult",
+      "fixture": "invalid/explanation-result-unavailable-with-claims.json",
+      "keyword": "maxItems",
+      "reason": "unavailable explanation must not contain claims"
+    },
+    {
+      "schema": "SteeringResult",
+      "fixture": "invalid/steering-result-plan-without-opt-in.json",
+      "keyword": "const",
+      "reason": "a steering plan requires explicit opt-in"
+    },
+    {
+      "schema": "RepairCandidate",
+      "fixture": "invalid/repair-candidate-without-approval.json",
+      "keyword": "const",
+      "reason": "repair candidates always require approval"
+    },
+    {
+      "schema": "VerificationResult",
+      "fixture": "invalid/verification-result-unavailable-passed.json",
+      "keyword": "const",
+      "reason": "an unavailable verification cannot pass"
+    },
+    {
+      "schema": "ExperimentMetadata",
+      "fixture": "invalid/experiment-metadata-invalid-config-hash.json",
+      "keyword": "pattern",
+      "reason": "configHash must be a lowercase SHA-256 digest"
+    }
+  ]
+}

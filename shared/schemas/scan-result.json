@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://craftsec.local/schemas/v1/scan-result.json",
+  "title": "ScanResult",
+  "description": "The result of a single-file or workspace scan. When analysisAvailable is false, findings must be empty; an empty findings list is not by itself a clean result.",
+  "type": "object",
+  "required": [
+    "scanId",
+    "requestId",
+    "apiVersion",
+    "status",
+    "analysisAvailable",
+    "filesScanned",
+    "findings",
+    "warnings",
+    "limitations"
+  ],
+  "properties": {
+    "scanId": {
+      "$ref": "common.json#/$defs/Identifier"
+    },
+    "requestId": {
+      "$ref": "common.json#/$defs/Identifier"
+    },
+    "apiVersion": {
+      "$ref": "common.json#/$defs/ContractVersion"
+    },
+    "status": {
+      "enum": ["completed", "partial", "unavailable", "failed"]
+    },
+    "analysisAvailable": {
+      "type": "boolean"
+    },
+    "filesScanned": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "vulnerability-finding.json"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 5000
+      }
+    },
+    "limitations": {
+      "$ref": "common.json#/$defs/Limitations"
+    },
+    "startedAt": {
+      "$ref": "common.json#/$defs/IsoTimestamp"
+    },
+    "completedAt": {
+      "$ref": "common.json#/$defs/IsoTimestamp"
+    },
+    "scope": {
+      "type": "object",
+      "required": ["uris"],
+      "properties": {
+        "uris": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "$ref": "common.json#/$defs/FileUri"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "stages": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "common.json#/$defs/StageReport"
+      }
+    },
+    "provenance": {
+      "$ref": "common.json#/$defs/Provenance"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "analysisAvailable": {
+            "const": false
+          }
+        },
+        "required": ["analysisAvailable"]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "findings": {
+            "type": "array",
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "unavailable"
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "analysisAvailable": {
+            "const": false
+          },
+          "findings": {
+            "type": "array",
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

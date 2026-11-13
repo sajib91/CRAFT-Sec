@@ -1613,8 +1613,12 @@
     const detail =
       typeof engine.detail === 'string' && engine.detail.length > 0
         ? engine.detail
-        : 'The local security engine is not available in this build. No result is produced.';
-    return callout('Security engine unavailable', detail, 'warning');
+        : 'The local security engine is not reachable. No result is produced.';
+    const title =
+      typeof engine.label === 'string' && engine.label.length > 0
+        ? engine.label
+        : 'Analysis capabilities unavailable';
+    return callout(title, detail, 'warning');
   }
 
   function actionGrid(sectionId) {

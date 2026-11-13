@@ -162,10 +162,11 @@ const DASHBOARD_ACTIONS = Object.freeze([
 
 const ENGINE_UNAVAILABLE = Object.freeze({
   status: 'unavailable',
-  label: 'Security engine unavailable',
+  label: 'Analysis capabilities unavailable',
   detail:
-    'The local CRAFT-Sec security engine is not running in this build. No scanning, SAE analysis, ' +
-    'counterfactual analysis, repair, or verification result is available.'
+    'The extension connects to the local backend for health checks and file or workspace ' +
+    'inspection. Detection, SAE analysis, counterfactual analysis, repair, and verification are ' +
+    'not implemented, and no result is simulated.'
 });
 
 const DEFAULT_SETTINGS = Object.freeze({

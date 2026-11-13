@@ -1,0 +1,18 @@
+{
+  "requestId": "req-0001",
+  "workspaceFolderName": "workspace",
+  "filePath": "/workspace/src/app.py",
+  "documentUri": "file:///workspace/src/app.py",
+  "languageId": "python",
+  "documentVersion": 3,
+  "selection": {
+    "start": {
+      "line": 10,
+      "column": 4
+    },
+    "end": {
+      "line": 10,
+      "column": 20
+    }
+  }
+}

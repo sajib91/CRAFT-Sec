@@ -6,7 +6,7 @@ CRAFT-Sec is a local-first research system for explainable vulnerability detecti
 
 ## Status
 
-**Phase 1: repository scaffold, development environment, VS Code extension shell, command layer, and security dashboard.** This repository currently contains the approved architecture, directory structure, package manifests, development toolchain, placeholder documentation, and a runnable extension shell with an editor-area security dashboard. The environment settings layer, extension activation, modular command registration against a security-engine service interface, and the dashboard's empty/demo state model are implemented with tests. It does **not** yet implement vulnerability detection, SAE extraction, counterfactuals, steering, repair, or verification. No results, benchmarks, or model performance are claimed.
+**Phase 1: repository scaffold, development environment, VS Code extension shell, security dashboard, diagnostics layer, versioned FastAPI engine API, and live local HTTP transport.** The extension shell and backend-result diagnostics are implemented. The Python engine exposes a tested `/api/v1` HTTP API, performs real allowlisted file and workspace inspection (including caller-supplied unsaved editor text), and reports every unimplemented research stage as `unavailable`. The extension connects to an already-running backend for health checks, file scans, selection detection requests, and workspace scans; it does not start the engine. It does **not** yet implement vulnerability detection, SAE extraction, counterfactuals, steering, repair, or verification; those responses contain no fabricated findings, scores, features, effects, patches, or verdicts. No empirical results, benchmarks, or model performance are claimed.
 
 ## Research integrity
 
@@ -25,7 +25,7 @@ See [docs/research-alignment.md](docs/research-alignment.md) for the binding cla
 
 | Path | Purpose |
 |------|---------|
-| `vscode-extension/` | JavaScript VS Code extension, webviews, backend lifecycle, patch approval |
+| `vscode-extension/` | JavaScript VS Code extension, webviews, backend HTTP client, patch approval |
 | `security-engine/` | Python/FastAPI engine: ingestion, parsing, analyzers, model/SAE, detection, counterfactuals, steering, repair, verification |
 | `shared/` | JSON Schemas, generated contract artifacts, and contract fixtures |
 | `research/` | Experiment configs, evaluation protocols, dataset cards, and research records |
@@ -52,7 +52,14 @@ Core research modules under `security-engine/src/craftsec/`:
 - Optional: Semgrep, Bandit, Docker/Podman, CodeQL, Joern
 - Optional: CUDA/MPS hardware for future model/SAE workflows; CPU-only development is supported
 
-The engine has no runnable server yet. Dependencies are installed for later phases; installing them does not make the application functional.
+The engine server is runnable. From the repository root after setup:
+
+```bash
+cd security-engine
+../.venv/bin/python -m craftsec
+```
+
+It binds `127.0.0.1:8765` by default and serves OpenAPI at `/openapi.json` and `/docs`. See [docs/api.md](docs/api.md) for endpoints, limits, auth, and response contracts.
 
 ## Development setup
 
@@ -72,11 +79,12 @@ npm run check
 npm run structure:check
 ```
 
-This verifies that the scaffold matches the approved architecture layout. After setup, `npm run check` runs structure, lint, formatting, and tests. The current tests cover environment settings, command registration and validation, the extension manifest, the dashboard model/HTML/panel/client, the sidebar launcher, and an Extension Host run that opens the dashboard. No analysis functionality is implemented.
+This verifies that the scaffold matches the approved architecture layout. After setup, `npm run check` runs structure, lint, formatting, and tests. The current tests cover the versioned HTTP API, validation and problem details, auth/CORS/limits, path containment, pipeline semantics, environment settings, command registration and validation, backend URL/timeout/privacy configuration, HTTP transport and response validation, the extension manifest, the dashboard model/HTML/panel/client, the sidebar launcher, and an Extension Host run against a live backend that verifies health, unsaved-buffer scanning, consent-gated source sharing, workspace/selection scans, and the dashboard. No analysis functionality is implemented; analysis endpoints return explicit `unavailable` stages.
 
 ## Documentation
 
 - [Development setup](docs/development-setup.md)
+- [HTTP API](docs/api.md)
 - [Architecture](docs/architecture.md)
 - [Research alignment and integrity contract](docs/research-alignment.md)
 - [Architecture decision records](docs/adr/README.md)

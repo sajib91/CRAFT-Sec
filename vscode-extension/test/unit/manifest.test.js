@@ -105,6 +105,10 @@ test('activity bar container and sidebar webview are contributed', () => {
 test('configuration settings are declared', () => {
   const properties = manifest.contributes?.configuration?.properties ?? {};
   for (const key of [
+    'craftsec.backend.url',
+    'craftsec.backend.requestTimeoutMs',
+    'craftsec.backend.healthTimeoutMs',
+    'craftsec.privacy.sendSourceText',
     'craftsec.backend.pythonPath',
     'craftsec.backend.autoStart',
     'craftsec.logging.level',
@@ -120,6 +124,10 @@ test('configuration settings are declared', () => {
     'error',
     'off'
   ]);
+  assert.equal(properties['craftsec.backend.url'].default, 'http://127.0.0.1:8765');
+  assert.equal(properties['craftsec.backend.requestTimeoutMs'].default, 30000);
+  assert.equal(properties['craftsec.backend.healthTimeoutMs'].default, 3000);
+  assert.equal(properties['craftsec.privacy.sendSourceText'].default, true);
 });
 
 test('extension icon is a valid 128x128 PNG', () => {

@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://craftsec.local/schemas/v1/experiment-metadata.json",
+  "title": "ExperimentMetadata",
+  "description": "Reproducibility metadata for one experiment. Hashes identify configuration and data splits without embedding source code or credentials.",
+  "type": "object",
+  "required": [
+    "experimentId",
+    "name",
+    "createdAt",
+    "status",
+    "configHash",
+    "provenance"
+  ],
+  "properties": {
+    "experimentId": {
+      "$ref": "common.json#/$defs/Identifier"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "createdAt": {
+      "$ref": "common.json#/$defs/IsoTimestamp"
+    },
+    "completedAt": {
+      "oneOf": [
+        {
+          "$ref": "common.json#/$defs/IsoTimestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "enum": ["planned", "running", "completed", "failed"]
+    },
+    "gitCommit": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "snapshotHash": {
+      "oneOf": [
+        {
+          "$ref": "common.json#/$defs/Sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "configHash": {
+      "$ref": "common.json#/$defs/Sha256"
+    },
+    "randomSeed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "dataset": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Dataset"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "models": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/ModelReference"
+      }
+    },
+    "saeArtifacts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/SaeArtifactReference"
+      }
+    },
+    "environment": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Environment"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "provenance": {
+      "$ref": "common.json#/$defs/Provenance"
+    },
+    "limitations": {
+      "$ref": "common.json#/$defs/Limitations"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Dataset": {
+      "type": "object",
+      "required": ["datasetId", "datasetCardId", "splitHash"],
+      "properties": {
+        "datasetId": {
+          "$ref": "common.json#/$defs/Identifier"
+        },
+        "datasetCardId": {
+          "$ref": "common.json#/$defs/Identifier"
+        },
+        "splitHash": {
+          "$ref": "common.json#/$defs/Sha256"
+        },
+        "license": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false
+    },
+    "ModelReference": {
+      "type": "object",
+      "required": ["modelId"],
+      "properties": {
+        "modelId": {
+          "$ref": "common.json#/$defs/Identifier"
+        },
+        "revision": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "artifactId": {
+          "$ref": "common.json#/$defs/Identifier"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SaeArtifactReference": {
+      "type": "object",
+      "required": ["saeArtifactId", "modelId", "layer", "hookPoint", "sha256"],
+      "properties": {
+        "saeArtifactId": {
+          "$ref": "common.json#/$defs/Identifier"
+        },
+        "modelId": {
+          "$ref": "common.json#/$defs/Identifier"
+        },
+        "layer": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "hookPoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "sha256": {
+          "$ref": "common.json#/$defs/Sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Environment": {
+      "type": "object",
+      "required": ["pythonVersion", "platform"],
+      "properties": {
+        "pythonVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "packages": {
+          "type": "object",
+          "maxProperties": 200,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

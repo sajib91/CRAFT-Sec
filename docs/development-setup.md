@@ -1,8 +1,8 @@
 # Development Setup
 
-**Status:** The macOS path was executed and verified on 2026-11-10; command-layer, dashboard, and diagnostics verification was repeated on 2026-11-12. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
+**Status:** The macOS path was executed and verified on 2026-11-10; command-layer, dashboard, diagnostics, and HTTP API verification was repeated on 2026-11-12. The Windows commands are derived from upstream installers and published wheel metadata; they were **not executed on this macOS host**. Claims below distinguish verified behavior from expected behavior.
 
-This repository is a scaffold. Setup installs the toolchain, and the VS Code extension shell with its dashboard and diagnostics pipeline can run in an Extension Development Host, but there is no FastAPI server, analyzer adapter, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or verifier yet. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
+This repository is an early implementation. Setup installs the toolchain, and the VS Code extension shell with its dashboard and diagnostics pipeline can run in an Extension Development Host. The Python engine now provides a tested, versioned FastAPI HTTP API with real file/workspace inspection; the extension does not yet start it or use a live HTTP client. No analyzer adapter, detector, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or adequate verification sandbox is implemented. Those stages report `unavailable`. No model weights, datasets, SAE artifacts, or benchmark results are downloaded or produced.
 
 ## 1. Supported toolchain
 
@@ -175,6 +175,14 @@ Setup copies `.env.example` to `.env`. Never commit `.env`. The template sets CP
 | `CRAFTSEC_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` |
 | `CRAFTSEC_DATA_DIR` | `./.craftsec-data` | Local data directory |
 | `CRAFTSEC_LOG_DIR` | `./.craftsec-data/logs` | Local log directory |
+| `CRAFTSEC_HOST` | `127.0.0.1` | API bind address; keep loopback for local use |
+| `CRAFTSEC_PORT` | `8765` | API port; `0` selects an ephemeral port |
+| `CRAFTSEC_CORS_ORIGINS` | commented out | Exact comma-separated origin allowlist; wildcards are rejected |
+| `CRAFTSEC_WORKSPACE_ROOTS` | commented out | Allowed scan roots; defaults to the process working directory |
+| `CRAFTSEC_MAX_REQUEST_BYTES` | `2097152` | Maximum JSON request body |
+| `CRAFTSEC_MAX_FILE_BYTES` | `1048576` | Maximum inspected file size |
+| `CRAFTSEC_MAX_WORKSPACE_FILES` | `50000` | Maximum files discovered per workspace scan |
+| `CRAFTSEC_API_TOKEN` | commented out | Optional bearer token for `/api/*` requests |
 | `CRAFTSEC_DEVICE` | `cpu` | `cpu`, `auto`, `cuda`, or `mps`; `auto` detects hardware |
 | `CRAFTSEC_GPU_CONCURRENCY` | `1` | Integer from 1 to 8 |
 | `CRAFTSEC_MODEL_ID` | commented out | Hugging Face model identifier, only when a workflow needs it |
@@ -188,7 +196,7 @@ Setup copies `.env.example` to `.env`. Never commit `.env`. The template sets CP
 
 Relative paths are resolved from the process working directory. Run engine commands from the repository root unless a later component documents otherwise.
 
-The settings layer is implemented and tested in `security-engine/src/craftsec/core/settings.py`. It validates environment values, creates data/log directories on request, and removes the Hugging Face token from `Settings.redacted()`. The tests do not download models or call external services.
+The settings layer is implemented and tested in `security-engine/src/craftsec/core/settings.py`. It validates environment values, normalizes CORS and workspace allowlists, enforces HTTP and scan limits, creates data/log directories on request, and removes the Hugging Face and API tokens from `Settings.redacted()`. The tests do not download models or call external services.
 
 ## 8. Daily commands
 
@@ -215,7 +223,12 @@ cd security-engine
 python -m pytest
 python -m ruff check src tests
 python -m ruff format --check src tests
+python -m craftsec --host 127.0.0.1 --port 8765
 ```
+
+The last command starts the local engine API. OpenAPI is served at
+`http://127.0.0.1:8765/openapi.json` and interactive docs at
+`http://127.0.0.1:8765/docs`. See [api.md](api.md).
 
 ## 9. VS Code extension development
 
@@ -243,18 +256,18 @@ All commands use the **CRAFT-Sec** category:
 | `craftsec.counterfactualAnalysis` | Saved file with a non-empty selection | `counterfactualAnalysis` |
 | `craftsec.generateSecureCode` | Saved file in a workspace folder | `generateSecureCode` |
 | `craftsec.repairVulnerability` | Saved file in a workspace folder; optional finding context from a diagnostic Quick Fix | `repairVulnerability` |
-| `craftsec.verifyRepair` | One or more workspace folders | `verifyRepair` |
+| `craftsec.verifyRepair` | Saved file in a workspace folder | `verifyRepair` |
 | `craftsec.openSecurityDashboard` | None | — |
 
-The extension activates on startup, its commands, and when the sidebar view is opened. Activation creates the output channel, status bar item, security-engine service, diagnostics controller and providers, dashboard panel controller, command registry, settings listeners, and sidebar launcher provider. Deactivation records the transition; VS Code disposes the registered subscriptions, including the single command registry that owns all 12 registrations and the diagnostics feature. No Python process is started and no analysis runs.
+The extension activates on startup, its commands, and when the sidebar view is opened. Activation creates the output channel, status bar item, configuration service, HTTP security-engine service, diagnostics controller and providers, dashboard panel controller, command registry, settings listeners, and sidebar launcher provider. Deactivation records the transition; VS Code disposes the registered subscriptions, including the single command registry that owns all 12 registrations and the diagnostics feature. No Python process is started by the extension. Activation performs a non-blocking backend health check that sends no source code.
 
 `craftsec.openSecurityDashboard` calls the injected `DashboardPanelController`, which creates or reveals a singleton editor-area panel titled **CRAFT-Sec Security Dashboard**. The dashboard is empty by default: unknown counts are `null` and result lists are empty. The **Load demo preview** action requests a separately labeled state with 18 illustrative findings and matching severity/CWE totals; it intentionally leaves SAE features, interactions, steering, explanations, repairs, verification checks, and reports empty. Dashboard action buttons may execute only the nine engine-backed commands in the controller's allowlist, with no arguments; commands that fail produce an error notice, never a success notice. The dashboard cannot write source files or apply patches.
 
 The dashboard shell is server-rendered and the client renders dynamic content with DOM text APIs. It uses a per-render nonce, `default-src 'none'`, no network or inline executable code, local resource roots, and escaped embedded JSON. Inbound webview messages are validated; unknown messages are ignored. The Activity Bar launcher has the same CSP discipline and can only send `openDashboard`.
 
-Successful file, selection, and workspace scans pass the backend result to `DiagnosticController.publishScanResult`. The controller validates the result, rejects malformed findings and paths outside the workspace, publishes a `DiagnosticCollection` for the Problems panel, and stores normalized findings for hover and Quick Fix providers. File and selection scans replace diagnostics for the scanned document; workspace scans clear files named by the backend `scope.uris`. A failed or cancelled scan never changes diagnostics. Hover shows backend explanation, evidence, sources, and repair state. A repair Quick Fix appears only when the backend sets `repair.eligible` to `true` and invokes `craftsec.repairVulnerability` with validated finding context; the extension does not edit source. Because the service is unavailable, no live findings are produced.
+Successful file, selection, and workspace scans pass the backend result to `DiagnosticController.publishScanResult`. The controller validates the result, rejects malformed findings and paths outside the workspace, publishes a `DiagnosticCollection` for the Problems panel, and stores normalized findings for hover and Quick Fix providers. File and selection scans replace diagnostics for the scanned document; workspace scans clear files named by the backend `scope.uris`. A failed or cancelled scan never changes diagnostics. Hover shows backend explanation, evidence, sources, and repair state. A repair Quick Fix appears only when the backend sets `repair.eligible` to `true` and invokes `craftsec.repairVulnerability` with validated finding context; the extension does not edit source. The backend currently reports `analysisAvailable: false` and no findings because detection is unimplemented; that state is shown as unavailable analysis, not as a clean scan.
 
-Engine-backed commands validate the editor and workspace before calling the injected `SecurityEngineService`. Validation failures and service failures are logged and shown as error messages with a **Show Logs** action; cancelled commands are logged without an error dialog. Commands show a cancellable progress notification but never a success notification. The current `UnavailableSecurityEngineService` rejects every call with `E_ENGINE_UNAVAILABLE`, so no result is fabricated.
+Engine-backed commands validate the editor and workspace before calling the injected `SecurityEngineService`. Validation failures and service failures are logged and shown as error messages with a **Show Logs** action; cancelled commands are logged without an error dialog. Commands show a cancellable progress notification but never a success notification. The HTTP service uses the configured backend origin, applies request and health timeouts, and validates every response. File and selection requests include `sourceText`/`selectedText` only when `craftsec.privacy.sendSourceText` is enabled; disabling it sends paths and ranges so the backend reads the saved file from disk. Workspace scans send folder metadata only. Transport failures report `E_BACKEND_UNAVAILABLE`, timeouts report `E_REQUEST_TIMEOUT`, cancellation is silent, and malformed responses are rejected without publishing diagnostics.
 
 Use the **Run CRAFT-Sec Extension** launch configuration in `.vscode/launch.json` to start an Extension Development Host with `vscode-extension/` as the development path. The equivalent automated check is:
 
@@ -262,7 +275,7 @@ Use the **Run CRAFT-Sec Extension** launch configuration in `.vscode/launch.json
 npm run extension:test:integration
 ```
 
-This uses a locally installed VS Code when found (`CRAFTSEC_VSCODE_EXECUTABLE` overrides it), otherwise it downloads stable VS Code into the gitignored `.vscode-test/` directory. The suite activates the extension, verifies all registered commands, the Activity Bar container, sidebar view, and configuration defaults, confirms that activation publishes no hardcoded CRAFT-Sec diagnostics, opens the dashboard, waits for its editor tab, and verifies that a second invocation reuses the same tab.
+This uses a locally installed VS Code when found (`CRAFTSEC_VSCODE_EXECUTABLE` overrides it), otherwise it downloads stable VS Code into the gitignored `.vscode-test/` directory. The runner creates a disposable workspace, starts the Python backend on a free loopback port with `CRAFTSEC_WORKSPACE_ROOTS` limited to that workspace, waits for `/api/v1/health`, and passes the backend URL to the Extension Host. The suite activates the extension, sets the workspace-scoped backend URL, verifies health and unreachable-backend handling, scans an unsaved editor buffer and checks that the returned SHA-256 matches the buffer rather than the saved file, disables source sharing and verifies the backend falls back to the disk copy, scans the workspace and a selection, verifies that unavailable analysis publishes no diagnostics, opens the dashboard, and verifies that a second invocation reuses the same tab. The backend is terminated and the temporary workspace removed afterwards.
 
 The launch configuration itself was not clicked on this host, but the same development-extension path was loaded by the Extension Host integration test.
 
@@ -288,13 +301,13 @@ Verified on macOS 26.3.1 arm64; environment verification on 2026-11-10, command-
 | Check | Result |
 |---|---|
 | `npm run setup -- --python python3.11 --cpu --with-analyzers` | Succeeded; reused/created `.venv`; no model downloads |
-| `npm run structure:check` | 46 required directories and 94 required files present; no TypeScript sources |
+| `npm run structure:check` | 47 required directories and 114 required files present; no TypeScript sources |
 | `npm run doctor` | Python 3.11.14; Node 25.9.0; npm 11.13.0; all declared Python packages present; Semgrep 1.185.0; Bandit 1.9.4; Docker 29.2.1 |
 | CPU-only PyTorch | `torch 2.15.0`, `torch.version.cuda is None` |
 | Tree-sitter grammars | Python, JavaScript, and TypeScript modules imported successfully |
 | `npm run lint` | Ruff passed; ESLint passed |
 | `npm run format:check` | Ruff and Prettier reported no formatting differences |
-| `npm test` | 7 pytest tests passed; 105 Node unit tests passed |
+| `npm test` | 88 pytest tests passed (API, settings, paths, and pipeline); 105 Node unit tests passed |
 | `npm run extension:test:integration` | Extension Host activated the extension; all 12 commands, Activity Bar container, sidebar view, settings, empty diagnostics at activation, dashboard tab, and dashboard singleton behavior verified; VS Code 1.143.1 |
 | Dashboard runtime smoke test | Headless Chrome rendered the empty and demo states across all 11 sections with no console or CSP errors; manual check, not part of `npm run check` |
 | `npm run check` | Structure, lint, format check, and both test suites passed |
@@ -327,15 +340,17 @@ The `minimatch` advisories affect ESLint and `@vscode/vsce` development dependen
 
 - Windows setup commands were not executed on this macOS host.
 - The VS Code **Run CRAFT-Sec Extension** launch configuration was not clicked manually; an equivalent Extension Host run passed through `@vscode/test-electron`.
-- The extension is a shell with a dashboard. It does not start the Python backend or implement detection, SAE extraction, counterfactuals, steering, repair, or verification.
-- Diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. Because every scan currently fails with `E_ENGINE_UNAVAILABLE`, the build publishes no live findings; provider behavior is tested with backend-shaped fixtures.
+- The extension connects to a separately started Python backend over the versioned HTTP API. It does not start or supervise that process. Detection, SAE extraction, counterfactuals, steering, repair, and verification remain unavailable.
+- Diagnostics, hover explanations, and repair Quick Fixes are generated only from validated backend scan results. Because detection is unimplemented, current scans report `analysisAvailable: false` and publish no live findings; provider behavior is tested with backend-shaped fixtures.
 - Finding locations and source-reference file links are restricted to open workspace folders. A source reference outside the workspace is shown as text anchored at the finding instead of a clickable location. Symlink targets are not resolved.
-- The diagnostics pipeline is not exercised against a real backend, and its Windows rendering and interaction behavior were not tested because development runs on macOS.
+- The diagnostics pipeline is exercised against the real backend for transport, response validation, and empty-finding behavior, but not with detector-produced findings because no detector exists. Windows rendering and interaction behavior were not tested because development runs on macOS.
 - The dashboard demo preview is illustrative interface data only. It is not a scan result, and it deliberately omits SAE activations, feature effects, steering results, explanations, repairs, verification checks, and reports.
-- All engine-backed commands are wired to `UnavailableSecurityEngineService`. Invoking them shows progress and then reports `E_ENGINE_UNAVAILABLE`; no analysis result, probability, or causal claim is produced.
-- Command behavior is covered by unit tests with fake VS Code and service objects. The Extension Host test verifies registration, sidebar launcher presence, dashboard panel creation, and singleton behavior; it does not inspect the rendered webview DOM or invoke engine-backed commands against a real backend.
+- Research analysis commands are wired to the HTTP service but report the backend's explicit `unavailable` stages. No analysis result, probability, or causal claim is produced.
+- Command behavior is covered by unit tests with fake VS Code objects and by an Extension Host test that invokes engine-backed commands against the real backend. The Extension Host test does not inspect the rendered webview DOM.
 - The headless Chrome dashboard smoke test is a manual verification and is not committed as a portable automated test; it does not replace a browser-matrix or assistive-technology audit.
-- No FastAPI server, analyzer adapter, model runtime, SAE loader, feature extractor, counterfactual engine, steering controller, repair generator, or verifier exists yet.
+- The FastAPI server exists and is covered by backend API tests; no analyzer adapter, detector, model runtime, SAE loader, feature extractor, counterfactual engine, steering controller, repair generator, or verifier exists yet.
+- The headless Chrome dashboard smoke test is a manual verification and is not committed as a portable automated test; it does not replace a browser-matrix or assistive-technology audit.
+- The FastAPI server exists and is covered by backend API tests, but the extension does not start it, and no analyzer adapter, detector, model runtime, SAE loader, feature extractor, counterfactual engine, steering controller, repair generator, or verifier exists yet.
 - Python 3.12–3.14 were not exercised end-to-end.
 - Native Semgrep on Windows was not exercised.
 - The development VSIX does not bundle `ajv` or other runtime dependencies.

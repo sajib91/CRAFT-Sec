@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://craftsec.local/schemas/v1/feature-extraction-result.json",
+  "title": "FeatureExtractionResult",
+  "description": "SAE feature measurements for one file. A true analysisAvailable value requires the measured artifact to be identified; an unavailable result must not contain features.",
+  "type": "object",
+  "required": ["analysisAvailable", "features", "limitations"],
+  "properties": {
+    "analysisAvailable": {
+      "type": "boolean"
+    },
+    "saeArtifactId": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "modelId": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "layer": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "hookPoint": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "aggregation": {
+      "enum": ["max", "mean", "count", null]
+    },
+    "coverage": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "features": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/Feature"
+      }
+    },
+    "limitations": {
+      "$ref": "common.json#/$defs/Limitations"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Feature": {
+      "type": "object",
+      "required": ["featureIndex", "activation", "evidenceClass"],
+      "properties": {
+        "featureIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activation": {
+          "type": "number"
+        },
+        "evidenceClass": {
+          "const": "sae_feature"
+        },
+        "label": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "description": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 5000
+        },
+        "topExamples": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "required": ["activation"],
+            "properties": {
+              "activation": {
+                "type": "number"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "analysisAvailable": {
+            "const": false
+          }
+        },
+        "required": ["analysisAvailable"]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "features": {
+            "type": "array",
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "analysisAvailable": {
+            "const": true
+          }
+        },
+        "required": ["analysisAvailable"]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "saeArtifactId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["saeArtifactId"]
+      }
+    }
+  ]
+}

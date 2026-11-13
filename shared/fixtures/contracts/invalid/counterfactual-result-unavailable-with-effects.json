@@ -1,0 +1,40 @@
+{
+  "analysisAvailable": false,
+  "scope": "model_intervention",
+  "findingId": "finding-0001",
+  "effects": [
+    {
+      "interventionId": "intervention-01",
+      "kind": "ablate",
+      "featureIndices": [
+        1234,
+        5678
+      ],
+      "strength": 1,
+      "effect": 0.18,
+      "confidenceInterval": {
+        "lower": 0.05,
+        "upper": 0.31,
+        "level": 0.95
+      },
+      "validity": "valid",
+      "notes": [
+        "Effect measured over the configured intervention budget."
+      ]
+    }
+  ],
+  "validity": {
+    "valid": true,
+    "checks": [
+      "budget_reached",
+      "seed_recorded"
+    ],
+    "notes": [
+      "Effects are model-internal."
+    ]
+  },
+  "budget": 200,
+  "limitations": [
+    "This is a model-internal intervention effect, not a real-world causal effect."
+  ]
+}

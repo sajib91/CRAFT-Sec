@@ -1,0 +1,49 @@
+{
+  "experimentId": "experiment-0001",
+  "name": "detector-calibration-comparison",
+  "createdAt": "2026-11-13T00:00:00Z",
+  "completedAt": null,
+  "status": "planned",
+  "gitCommit": "0123456789abcdef0123456789abcdef01234567",
+  "snapshotHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "configHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "randomSeed": 42,
+  "dataset": {
+    "datasetId": "dataset-01",
+    "datasetCardId": "dataset-card-01",
+    "splitHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "license": "research-only"
+  },
+  "models": [
+    {
+      "modelId": "model-01",
+      "revision": "main",
+      "artifactId": "artifact-model-01"
+    }
+  ],
+  "saeArtifacts": [
+    {
+      "saeArtifactId": "sae-artifact-01",
+      "modelId": "model-01",
+      "layer": 12,
+      "hookPoint": "blocks.12.hook_resid_post",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "environment": {
+    "pythonVersion": "3.11.9",
+    "platform": "darwin-arm64",
+    "packages": {
+      "craftsec-engine": "0.1.0"
+    }
+  },
+  "provenance": {
+    "producer": "craftsec-engine",
+    "producerVersion": "0.1.0",
+    "generatedAt": "2026-11-13T00:00:00Z",
+    "configHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "limitations": [
+    "No benchmark result is attached to this metadata."
+  ]
+}

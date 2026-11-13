@@ -1,0 +1,25 @@
+{
+  "repairId": "repair-0001",
+  "findingId": "finding-0001",
+  "filePath": "/workspace/src/app.py",
+  "patch": "--- a/example.py\n+++ b/example.py\n@@ -1,1 +1,1 @@\n-old_expression\n+new_expression\n",
+  "patchFormat": "unified_diff",
+  "touchedFiles": ["/workspace/src/app.py"],
+  "rationale": [
+    "Replace the unsafe interpolation with a parameter placeholder."
+  ],
+  "riskNotes": [
+    "The database driver must support parameter binding.",
+    "Generated tests are not a security guarantee."
+  ],
+  "requiresApproval": true,
+  "provenance": {
+    "producer": "craftsec-engine",
+    "producerVersion": "0.1.0",
+    "generatedAt": "2026-11-13T00:00:00Z",
+    "source": "model"
+  },
+  "limitations": [
+    "The patch has not been applied or executed."
+  ]
+}

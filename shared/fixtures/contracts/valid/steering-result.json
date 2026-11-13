@@ -1,0 +1,22 @@
+{
+  "analysisAvailable": true,
+  "plan": {
+    "featureIndices": [1234],
+    "strength": 2.0,
+    "targetMetric": "detector_score",
+    "explicitOptIn": true
+  },
+  "evaluation": {
+    "before": 0.72,
+    "after": 0.31,
+    "delta": -0.41,
+    "valid": true
+  },
+  "guardrails": [
+    "Explicit opt-in was recorded before planning.",
+    "Evaluation is limited to the configured target metric."
+  ],
+  "limitations": [
+    "Steering results are model-internal and do not establish real-world safety."
+  ]
+}

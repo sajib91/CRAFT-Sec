@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://craftsec.local/schemas/v1/repair-candidate.json",
+  "title": "RepairCandidate",
+  "description": "A reviewable repair proposal. The backend never applies it; requiresApproval is always true.",
+  "type": "object",
+  "required": [
+    "repairId",
+    "findingId",
+    "filePath",
+    "patch",
+    "rationale",
+    "requiresApproval"
+  ],
+  "properties": {
+    "repairId": {
+      "$ref": "common.json#/$defs/Identifier"
+    },
+    "findingId": {
+      "$ref": "common.json#/$defs/Identifier"
+    },
+    "filePath": {
+      "$ref": "common.json#/$defs/FilePath"
+    },
+    "patch": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 5000000
+    },
+    "patchFormat": {
+      "enum": ["unified_diff"]
+    },
+    "touchedFiles": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "common.json#/$defs/FilePath"
+      }
+    },
+    "rationale": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 5000
+      }
+    },
+    "riskNotes": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 5000
+      }
+    },
+    "requiresApproval": {
+      "const": true
+    },
+    "provenance": {
+      "$ref": "common.json#/$defs/Provenance"
+    },
+    "limitations": {
+      "$ref": "common.json#/$defs/Limitations"
+    }
+  },
+  "additionalProperties": false
+}

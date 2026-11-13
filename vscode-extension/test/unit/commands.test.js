@@ -9,6 +9,7 @@ const { registerCommands, expectedCommandIds } = require('../../src/commands');
 const { CommandRegistry } = require('../../src/commands/registry');
 
 const ENGINE_METHODS = Object.freeze([
+  'health',
   'scanFile',
   'scanSelection',
   'scanWorkspace',
@@ -109,6 +110,7 @@ function createFakeVscode(options = {}) {
   const progressReports = [];
   const progressOptions = [];
   const informationMessages = [];
+  const warningMessages = [];
   const errorMessages = [];
   const executedCommands = [];
   const workspaceFolders = options.workspaceFolders ?? [];
@@ -150,6 +152,10 @@ function createFakeVscode(options = {}) {
         informationMessages.push({ message, actions });
         return options.informationMessageResult;
       },
+      async showWarningMessage(message, ...actions) {
+        warningMessages.push({ message, actions });
+        return options.warningMessageResult;
+      },
       async showErrorMessage(message, ...actions) {
         errorMessages.push({ message, actions });
         return options.errorMessageResult;
@@ -172,6 +178,13 @@ function createFakeVscode(options = {}) {
     },
     workspace: {
       workspaceFolders,
+      getConfiguration() {
+        return {
+          get(key, defaultValue) {
+            return options.configuration?.[key] ?? defaultValue;
+          }
+        };
+      },
       getWorkspaceFolder(uri) {
         if (options.getWorkspaceFolder) {
           return options.getWorkspaceFolder(uri);
@@ -191,6 +204,7 @@ function createFakeVscode(options = {}) {
     progressReports,
     progressOptions,
     informationMessages,
+    warningMessages,
     errorMessages,
     executedCommands,
     setActiveTextEditor(editor) {
@@ -240,6 +254,18 @@ function createFakeService(overrides = {}) {
       calls.push({ method, request, context });
       if (overrides[method]) {
         return overrides[method](request, context);
+      }
+      if (method === 'health') {
+        return {
+          service: 'craftsec-engine',
+          status: 'ok',
+          version: '0.1.0',
+          apiVersion: 'v1',
+          timestamp: new Date().toISOString(),
+          uptimeSeconds: 1,
+          capabilities: {},
+          sandboxBackend: 'docker'
+        };
       }
       return { method, request };
     };
@@ -438,14 +464,13 @@ test('scan current file passes saved editor context and cancellable progress', a
     end: { line: 3, character: 2 }
   });
   assert.equal(request.selectedText, 'const value = 1;');
+  assert.equal(request.sourceText, 'const value = 1;');
   assert.equal(typeof context.token.isCancellationRequested, 'boolean');
 
   assert.equal(harness.progressOptions[0].location, 15);
   assert.equal(harness.progressOptions[0].cancellable, true);
   assert.equal(harness.progressOptions[0].title, 'CRAFT-Sec: Scanning current file');
-  assert.deepEqual(harness.progressReports, [
-    { message: 'Waiting for the local security engine.' }
-  ]);
+  assert.deepEqual(harness.progressReports, [{ message: 'Contacting the CRAFT-Sec backend.' }]);
 
   assert.deepEqual(result, { method: 'scanFile', request });
   assert.equal(harness.informationMessages.length, 0, 'no success message may be shown');
@@ -579,13 +604,14 @@ test('dashboard failures are logged and reported', async () => {
   harness.registry.dispose();
 });
 
-test('show status reports the unavailable engine and never claims success', async () => {
+test('show status reports reachable backend and unavailable analysis without claiming success', async () => {
   const harness = createHarness({ informationMessageResult: 'Open Security Dashboard' });
 
   await harness.handlers.get(COMMANDS.showStatus)();
 
   assert.equal(harness.informationMessages.length, 1);
-  assert.match(harness.informationMessages[0].message, /not available/);
+  assert.match(harness.informationMessages[0].message, /reachable/);
+  assert.match(harness.informationMessages[0].message, /report unavailable/);
   assert.doesNotMatch(harness.informationMessages[0].message, /success/i);
   assert.deepEqual(harness.informationMessages[0].actions, [
     'Open Security Dashboard',
@@ -594,6 +620,30 @@ test('show status reports the unavailable engine and never claims success', asyn
   assert.deepEqual(harness.executedCommands, [
     { command: COMMANDS.openSecurityDashboard, args: [] }
   ]);
+
+  harness.registry.dispose();
+});
+
+test('show status reports an unreachable backend without claiming success', async () => {
+  const harness = createHarness({
+    errorMessageResult: 'Open Settings',
+    serviceOverrides: {
+      health: async () => {
+        throw new Error('Cannot reach the CRAFT-Sec backend at http://127.0.0.1:8765.');
+      }
+    }
+  });
+
+  await harness.handlers.get(COMMANDS.showStatus)();
+
+  assert.equal(harness.informationMessages.length, 0);
+  assert.equal(harness.errorMessages.length, 1);
+  assert.match(harness.errorMessages[0].message, /Cannot reach/);
+  assert.deepEqual(harness.errorMessages[0].actions, ['Show Logs', 'Open Settings']);
+  assert.deepEqual(harness.executedCommands, [
+    { command: 'workbench.action.openSettings', args: ['craftsec.backend.url'] }
+  ]);
+  assert.ok(harness.logger.entries.some((entry) => entry.level === 'warn'));
 
   harness.registry.dispose();
 });
@@ -625,6 +675,29 @@ test('scan results are published to diagnostics with the scanned file scope', as
   assert.deepEqual(harness.publications[0].options, {
     scopeUris: ['file:///workspace/src/app.js']
   });
+
+  harness.registry.dispose();
+});
+
+test('unavailable analysis is reported and never treated as a clean scan', async () => {
+  const backendResult = { findings: [], analysisAvailable: false };
+  const harness = createHarness({
+    activeTextEditor: createEditor(),
+    workspaceFolders: [createWorkspaceFolder('/workspace')],
+    serviceOverrides: {
+      scanFile: async () => backendResult
+    }
+  });
+
+  const result = await harness.handlers.get(COMMANDS.scanCurrentFile)();
+
+  assert.equal(result, backendResult);
+  assert.equal(harness.publications.length, 1);
+  assert.equal(harness.warningMessages.length, 1);
+  assert.match(harness.warningMessages[0].message, /analysis is unavailable/i);
+  assert.match(harness.warningMessages[0].message, /No findings or security conclusion/);
+  assert.equal(harness.informationMessages.length, 0, 'no success message may be shown');
+  assert.equal(harness.errorMessages.length, 0);
 
   harness.registry.dispose();
 });

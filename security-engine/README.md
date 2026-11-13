@@ -4,21 +4,58 @@ Local FastAPI research engine for vulnerability evidence, SAE feature extraction
 
 ## Status
 
-**Scaffold only.** The Python package tree, dependency manifest, migration location, and typed environment settings exist. There is no runnable API server, analyzer adapter, model runtime, SAE loader, counterfactual engine, steering controller, repair generator, or verifier yet. No results are claimed.
+**HTTP API implemented; research stages unavailable.** The versioned FastAPI
+transport, typed request/response schemas, structured errors, logging, auth,
+CORS, request limits, workspace containment, and real file/workspace inspection
+exist. No analyzer adapter, detector, model runtime, SAE loader, counterfactual
+engine, steering controller, repair generator, or adequate verification sandbox
+is implemented. Those stages return explicit `unavailable` statuses; no results
+are invented.
 
 Implemented and tested:
 
-- `src/craftsec/core/settings.py` — Pydantic settings, environment/file loading, validation, directory creation, and Hugging Face token redaction.
-- 7 settings unit tests under `tests/unit/`.
+- `src/craftsec/api/` — app factory, `/api/v1` routes, Pydantic schemas,
+  request-ID/access-log middleware, optional bearer auth, streaming body limits,
+  and RFC 9457 problem-detail handlers.
+- `src/craftsec/core/` — settings, typed errors, logging, path containment,
+  pipeline primitives, and the operation orchestrator.
+- `src/craftsec/main.py` — Uvicorn entry point with configurable host and port.
+- File scans — allowlisted-root validation, path/symlink containment, UTF-8 and
+  size checks, SHA-256 computation, and language detection.
+- Workspace scans — symlink-safe source discovery with ignored generated
+  directories and a configurable file-count limit.
+- 88 tests under `tests/`, covering every endpoint, validation, problem details,
+  auth, CORS, request/file/workspace limits, path containment, pipeline status
+  semantics, settings, and OpenAPI paths.
+- [API documentation](../docs/api.md) and generated OpenAPI at `/openapi.json`,
+  `/docs`, and `/redoc`.
+
+All analysis endpoints currently return `analysisAvailable: false` with explicit
+stage reason codes. Health reports every operation capability as `false`.
+
+## API
+
+From `security-engine/`:
+
+```bash
+../.venv/bin/python -m craftsec
+# or
+../.venv/bin/craftsec
+```
+
+Defaults: `127.0.0.1:8765`, 2 MB request body, 1 MB file, 50,000 workspace files,
+no CORS origins, and workspace roots set to the process working directory. Set
+`CRAFTSEC_API_TOKEN` to require `Authorization: Bearer <token>` on `/api/*`
+requests. See [../docs/api.md](../docs/api.md) and [../.env.example](../.env.example).
 
 ## Layout
 
 ```text
 src/craftsec/
-  api/                HTTP transport and route adapters
+  api/                FastAPI app, routes, schemas, middleware
   artifacts/          content-addressed artifact store
   contracts/          generated Pydantic models from shared JSON Schema
-  core/               errors, auth, paths, cancellation, jobs, settings
+  core/               errors, logging, paths, pipelines, orchestrator, settings
   counterfactual/     single, pairwise, higher-order analysis
   db/                 SQLite models and repositories
   detection/          evidence fusion and findings
@@ -77,7 +114,9 @@ cd security-engine
 ../.venv/bin/python -m pytest
 ```
 
-The current suite covers environment settings only. It does not exercise analysis functionality because none exists yet.
+The suite exercises the HTTP API and backend primitives. It does not exercise
+detection, SAE features, counterfactuals, steering, repair, or execution
+verification because those capabilities are not implemented.
 
 ## Build
 
@@ -89,4 +128,5 @@ This produces `security-engine/dist/craftsec_engine-0.1.0-py3-none-any.whl` and 
 
 ## Limitations
 
-See [LIMITATIONS.md](LIMITATIONS.md) and the authoritative register in [../docs/research-alignment.md](../docs/research-alignment.md).
+See [LIMITATIONS.md](LIMITATIONS.md), [../docs/api.md](../docs/api.md), and the
+authoritative register in [../docs/research-alignment.md](../docs/research-alignment.md).

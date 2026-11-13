@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://craftsec.local/schemas/v1/scan-request.json",
+  "title": "ScanRequest",
+  "description": "A single-file scan request. sourceText and selectedText are optional and may only be supplied after an explicit user action with source sharing enabled.",
+  "type": "object",
+  "required": ["workspaceRoot", "filePath"],
+  "properties": {
+    "requestId": {
+      "$ref": "common.json#/$defs/Identifier"
+    },
+    "workspaceRoot": {
+      "$ref": "common.json#/$defs/FilePath"
+    },
+    "workspaceFolderName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "filePath": {
+      "$ref": "common.json#/$defs/FilePath"
+    },
+    "documentUri": {
+      "$ref": "common.json#/$defs/FileUri"
+    },
+    "languageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "documentVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "selection": {
+      "$ref": "common.json#/$defs/Range"
+    },
+    "selectedText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000000
+    },
+    "sourceText": {
+      "type": "string",
+      "maxLength": 2000000
+    }
+  },
+  "additionalProperties": false
+}

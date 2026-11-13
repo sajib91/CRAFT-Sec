@@ -135,16 +135,45 @@
     "configuration": {
       "title": "CRAFT-Sec",
       "properties": {
+        "craftsec.backend.url": {
+          "type": "string",
+          "default": "http://127.0.0.1:8765",
+          "scope": "machine-overridable",
+          "pattern": "^https?://[^\\s]+$",
+          "markdownDescription": "Base URL of the running CRAFT-Sec FastAPI backend. Use only an HTTP or HTTPS origin with no credentials, path, query, or fragment. The extension appends `/api/v1` itself."
+        },
+        "craftsec.backend.requestTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "maximum": 300000,
+          "scope": "machine-overridable",
+          "description": "Timeout in milliseconds for scan and analysis requests. The request is aborted and reported to the user when it expires."
+        },
+        "craftsec.backend.healthTimeoutMs": {
+          "type": "number",
+          "default": 3000,
+          "minimum": 500,
+          "maximum": 60000,
+          "scope": "machine-overridable",
+          "description": "Timeout in milliseconds for backend health checks."
+        },
+        "craftsec.privacy.sendSourceText": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine-overridable",
+          "markdownDescription": "Send the active document text and selected text with explicitly user-invoked scan and analysis commands. Disable to send only file paths and ranges; the backend then reads the saved file from disk. Workspace scans never send file contents. Source text is not sent by health checks or automatically."
+        },
         "craftsec.backend.pythonPath": {
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
-          "markdownDescription": "Path to the Python interpreter for the local CRAFT-Sec security engine. Leave empty to use the workspace `.venv` or the platform default. The backend is not implemented in this scaffold."
+          "markdownDescription": "Reserved for a future backend process manager. The extension currently connects to an already-running backend and does not start one."
         },
         "craftsec.backend.autoStart": {
           "type": "boolean",
           "default": false,
-          "description": "Start the local security engine automatically when the backend exists. The current scaffold does not start an engine."
+          "description": "Reserved for a future backend process manager. The extension currently connects to an already-running backend and does not start one."
         },
         "craftsec.logging.level": {
           "type": "string",

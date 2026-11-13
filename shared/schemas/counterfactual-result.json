@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://craftsec.local/schemas/v1/counterfactual-result.json",
+  "title": "CounterfactualResult",
+  "description": "Model-internal intervention effects. These are not real-world causal effects. An unavailable analysis must not contain effects.",
+  "type": "object",
+  "required": ["analysisAvailable", "scope", "effects", "budget", "limitations"],
+  "properties": {
+    "analysisAvailable": {
+      "type": "boolean"
+    },
+    "scope": {
+      "const": "model_intervention"
+    },
+    "findingId": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "effects": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/Effect"
+      }
+    },
+    "validity": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Validity"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "budget": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
+    },
+    "limitations": {
+      "$ref": "common.json#/$defs/Limitations"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Effect": {
+      "type": "object",
+      "required": [
+        "interventionId",
+        "kind",
+        "featureIndices",
+        "strength",
+        "effect",
+        "validity"
+      ],
+      "properties": {
+        "interventionId": {
+          "$ref": "common.json#/$defs/Identifier"
+        },
+        "kind": {
+          "enum": ["ablate", "amplify", "scale"]
+        },
+        "featureIndices": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "strength": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 100
+        },
+        "effect": {
+          "type": "number"
+        },
+        "confidenceInterval": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ConfidenceInterval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "validity": {
+          "enum": ["valid", "invalid", "inconclusive"]
+        },
+        "notes": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConfidenceInterval": {
+      "type": "object",
+      "required": ["lower", "upper", "level"],
+      "properties": {
+        "lower": {
+          "type": "number"
+        },
+        "upper": {
+          "type": "number"
+        },
+        "level": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "Validity": {
+      "type": "object",
+      "required": ["valid"],
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "notes": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "analysisAvailable": {
+            "const": false
+          }
+        },
+        "required": ["analysisAvailable"]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "effects": {
+            "type": "array",
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

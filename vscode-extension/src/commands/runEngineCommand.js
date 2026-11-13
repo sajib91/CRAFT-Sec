@@ -40,8 +40,8 @@ async function reportFailure({ vscode, logger }, commandTitle, error, expected) 
 
 /**
  * Run one engine-backed command with a cancellable progress notification and
- * consistent error handling. No success notification is shown because results
- * are not available until the security engine exists.
+ * consistent error handling. Assignments are only published after a validated
+ * backend result is returned; transport failures never produce a success notice.
  *
  * @param {{ vscode: import('vscode'), logger: import('../logging/output').Logger }} dependencies
  * @param {{
@@ -82,7 +82,7 @@ async function runEngineCommand(dependencies, { definition, prepare, invoke, onR
           logger.info(`${definition.title} cancelled.`);
           return undefined;
         }
-        progress.report({ message: 'Waiting for the local security engine.' });
+        progress.report({ message: 'Contacting the CRAFT-Sec backend.' });
         const result = await invoke(request, { token, progress });
         if (token.isCancellationRequested) {
           logger.info(`${definition.title} cancelled.`);

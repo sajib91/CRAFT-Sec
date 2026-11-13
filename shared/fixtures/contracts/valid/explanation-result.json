@@ -1,0 +1,73 @@
+{
+  "analysisAvailable": true,
+  "findingId": "finding-0001",
+  "summary": "Static evidence and a model feature support the finding; the feature interpretation remains a hypothesis.",
+  "claims": [
+    {
+      "claimId": "claim-01",
+      "claimKind": "observation",
+      "text": "The static rule matched the flagged location.",
+      "evidenceSources": [
+        {
+          "kind": "static",
+          "source": "semgrep"
+        }
+      ],
+      "provenance": {
+        "producer": "craftsec-engine",
+        "producerVersion": "0.1.0",
+        "generatedAt": "2026-11-13T00:00:00Z",
+        "source": "static"
+      }
+    },
+    {
+      "claimId": "claim-02",
+      "claimKind": "hypothesis",
+      "text": "The model feature may indicate a vulnerable data flow, but this has not been verified.",
+      "evidenceSources": [
+        {
+          "kind": "sae_feature",
+          "source": "sae-artifact-01"
+        }
+      ]
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "finding-0001",
+        "kind": "finding",
+        "label": "Vulnerability finding",
+        "claimKind": "observation"
+      },
+      {
+        "id": "evidence-01",
+        "kind": "evidence",
+        "label": "Static rule match",
+        "claimKind": "observation"
+      },
+      {
+        "id": "feature-1234",
+        "kind": "feature",
+        "label": "SAE feature 1234",
+        "claimKind": "hypothesis"
+      }
+    ],
+    "edges": [
+      {
+        "from": "evidence-01",
+        "to": "finding-0001",
+        "kind": "supports"
+      },
+      {
+        "from": "feature-1234",
+        "to": "finding-0001",
+        "kind": "derived_from"
+      }
+    ]
+  },
+  "limitations": [
+    "The hypothesis claim is not verified.",
+    "The SAE feature is unlabelled."
+  ]
+}

@@ -70,6 +70,9 @@ function registerCommands({ vscode, service, logger, dashboard, diagnostics }) {
   if (!service) {
     throw new TypeError('registerCommands requires a SecurityEngineService.');
   }
+  if (typeof service.health !== 'function') {
+    throw new TypeError('SecurityEngineService.health is required for backend status checks.');
+  }
   if (!logger) {
     throw new TypeError('registerCommands requires a logger.');
   }
