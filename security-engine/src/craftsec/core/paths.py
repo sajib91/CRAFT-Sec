@@ -45,6 +45,8 @@ SOURCE_EXTENSIONS = frozenset(
         ".php",
         ".properties",
         ".py",
+        ".pyi",
+        ".pyw",
         ".rb",
         ".rs",
         ".scala",

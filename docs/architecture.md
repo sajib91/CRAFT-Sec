@@ -183,9 +183,11 @@ CRAFT-Sec/
 │   │   │   ├── treesitter.py
 │   │   │   ├── symbols.py
 │   │   │   └── languages.py
-│   │   ├── program_analysis/        # repository-level call graph/taint/reachability
-│   │   │   ├── callgraph.py
-│   │   │   └── taint.py
+│   │   ├── program_analysis/        # intraprocedural CFG/DFG; no call graph/taint yet
+│   │   │   ├── cfg.py
+│   │   │   ├── dfg.py
+│   │   │   ├── variables.py
+│   │   │   └── analysis.py
 │   │   ├── static/
 │   │   │   ├── semgrep.py
 │   │   │   ├── bandit.py
@@ -331,7 +333,7 @@ No TypeScript is used. Extension code is JavaScript with JSDoc annotations. Webv
 | `artifacts/store.py` | Content-addressed storage, atomic temp→rename, checksums, retention/GC | Serve raw paths to clients |
 | `ingestion/snapshot.py` | Manifest of path, hash, size, mode; ignore rules; caps | Read outside roots; follow escaping symlinks |
 | `parsing/*` | tree-sitter parse, symbol table, imports, call sites, test detection, parse diagnostics | Claim full coverage when parsing fails |
-| `program_analysis/*` | Repository-level call graphs, taint/reachability, and interprocedural context built on parsing/static evidence | Claim precision beyond supported languages or dataflow capabilities |
+| `program_analysis/*` | Intraprocedural CFGs (basic blocks, branches, loops, exceptions) and reaching-definition DFGs (def-use, calls, returns, closures) with exact spans and NetworkX graphs | Claim interprocedural flow, call resolution, soundness, or precision beyond the documented approximations |
 | `static/*` | Run analyzers, parse SARIF/JSON, normalize to evidence, capture versions/rule hashes | Invent findings or silently drop analyzer errors |
 | `models/runtime.py` | Load HF models locally, forward hooks, activation capture, generation, unload | Enable `trust_remote_code` by default |
 | `models/token_alignment.py` | Map token offsets to source spans | Guess alignment when offsets are unavailable; mark `unaligned` instead |

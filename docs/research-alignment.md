@@ -461,6 +461,14 @@ Evaluation datasets must be licensed, versioned, and hashed. If a dataset cannot
 | LIM-VER-02 | Static analyzers have false positives/negatives | Detection, verification | Analyzer versions + explicit tool attribution |
 | LIM-REPRO-01 | GPU/library nondeterminism limits exact reproduction | Experiments | Determinism tier + variance |
 | LIM-ENV-01 | CodeQL/Joern may be unavailable or version-dependent | Static adapters | Capability discovery + warnings |
+| LIM-PA-01 | CFG/DFG is intraprocedural; calls are not resolved and no interprocedural flow exists | Program analysis | Scope statement + `docs/program-analysis.md` |
+| LIM-PA-02 | Exception flow uses structured try dispatch; handler matching is not evaluated and finally may be bypassed | Program analysis | Edge-kind disclosure + limitations |
+| LIM-PA-03 | Closures and scopes are resolved syntactically; dynamic scope/eval/reflection are unsupported | Program analysis | Closure edge kind + unresolved-use flag |
+| LIM-PA-04 | The analysis does not track types, aliases, fields, or object mutation | Program analysis | Base-name approximation + limitations |
+| LIM-PA-05 | Some constructs are approximated or unsupported (comprehensions, generators/async, match, JS labels/JSX, TS/TSX) | Program analysis, parsing | Explicit support list + syntax diagnostics |
+| LIM-PA-06 | Syntax recovery and unreachable code make graphs partial; path feasibility is not evaluated | Program analysis | `has_syntax_errors`, unreachable blocks, limitations |
+| LIM-PA-07 | Synthetic entry/exit spans are zero-width and block spans exclude synthetic anchors | Program analysis | Exact real spans + limitation note |
+| LIM-PA-08 | Graphs are rebuilt without incremental or cross-file indexing; determinism is structural | Program analysis | Rebuild scope + determinism note |
 
 Each limitation ID must appear in the relevant module's documentation and, where user-visible, in the UI.
 
@@ -517,6 +525,7 @@ A result missing any required item is labelled `incomplete` and cannot be used i
 | Repository-aware repair | `repair/*`, extension patch flow | Context determinism, diff/path/hash validation, approval | G-REPAIR |
 | Independent verification | `verification/*`, `sandbox/*` | Independence, baseline policy, isolation | G-VERIFY |
 | Reproducibility | `experiments/*`, `artifacts/*` | Manifest completeness, config hash, export redaction | G-REPRO |
+| Program analysis (CFG/DFG) | `program_analysis/*` | Basic-block/edge correctness, reaching definitions, calls/returns/closures, span and determinism | Release checklist |
 | Limitations | `LIMITATIONS.md`, result schemas | Presence checks, UI rendering | Release checklist |
 
 ---
